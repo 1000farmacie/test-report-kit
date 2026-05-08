@@ -1,0 +1,50 @@
+<% if file_coverage.any? -%>
+<% full_count = file_coverage.count { |f| f[:coverage_pct] >= 100 } -%>
+<label class="toggle-row">
+  <input type="checkbox" id="hide-full-cov" checked>
+  hide files with 100% coverage (<%= full_count %> files hidden)
+</label>
+
+<div class="table-wrap">
+  <div class="table-header">
+    <div class="table-title">File Coverage Breakdown</div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 11px; color: var(--text-muted);">click a file to view line-by-line coverage</span>
+      <input type="text" class="table-filter" placeholder="filter files... (e.g. models, services)">
+    </div>
+  </div>
+  <div style="max-height: none; overflow-y: auto;">
+  <table>
+    <thead>
+      <tr>
+        <th data-sort>File</th>
+        <th data-sort>Line Cov</th>
+        <th data-sort>Branch Cov</th>
+        <th data-sort>Uncovered</th>
+        <th data-sort>Churn (90d)</th>
+        <th data-sort>Risk</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% file_coverage.each do |f| -%>
+      <tr class="cov-file-row" data-cov-pct="<%= f[:coverage_pct] %>" data-path="<%= h(f[:path]) %>" data-in-pr="<%= in_pr?(f[:path]) %>"<%= f[:coverage_pct] >= 100 ? ' style="display:none;"' : '' %>>
+        <td><div class="file-path"><%= file_link(f[:path]) %></div></td>
+        <td>
+          <div class="cov-bar">
+            <div class="cov-bar-track"><div class="cov-bar-fill" style="width:<%= f[:coverage_pct] %>%; background: <%= coverage_color(f[:coverage_pct]) %>;"></div></div>
+            <span class="cov-pct" style="color: <%= coverage_color(f[:coverage_pct]) %>;"><%= f[:coverage_pct] %>%</span>
+          </div>
+        </td>
+        <td><span class="num" style="color: <%= f[:branch_coverage_pct] ? coverage_color(f[:branch_coverage_pct]) : 'var(--text-muted)' %>;"><%= f[:branch_coverage_pct] ? "#{f[:branch_coverage_pct]}%" : "—" %></span></td>
+        <td><span class="num"><%= f[:missed_lines] %></span></td>
+        <td><span class="num"><%= f[:churn] %></span></td>
+        <td><span class="risk-score" style="background: <%= risk_bg(f[:risk_score]) %>; color: <%= risk_color(f[:risk_score]) %>;"><%= f[:risk_score] %></span></td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+  </div>
+</div>
+<% else -%>
+<div class="empty-state">No coverage data available. Run tests with SimpleCov enabled.</div>
+<% end -%>

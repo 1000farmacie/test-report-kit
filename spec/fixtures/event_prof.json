@@ -1,0 +1,27 @@
+{
+  "event": "sql.active_record",
+  "total_time": "00:15.234",
+  "total_run_time": "01:30.000",
+  "total_percentage": 16.93,
+  "total_events": 4567,
+  "suites": [
+    {
+      "description": "UsersController",
+      "location": "./spec/controllers/users_controller_spec.rb:1",
+      "time": "00:05.234",
+      "event_count": 145,
+      "example_count": 12,
+      "run_time": "00:08.000",
+      "percentage": 65.43
+    },
+    {
+      "description": "OrdersService",
+      "location": "./spec/services/orders_service_spec.rb:1",
+      "time": "00:03.456",
+      "event_count": 98,
+      "example_count": 8,
+      "run_time": "00:06.000",
+      "percentage": 57.6
+    }
+  ]
+}

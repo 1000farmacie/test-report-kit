@@ -1,0 +1,10 @@
+services:
+  gem:
+    build: .
+    volumes:
+      - .:/app
+      - bundle_cache:/usr/local/bundle
+    working_dir: /app
+
+volumes:
+  bundle_cache:

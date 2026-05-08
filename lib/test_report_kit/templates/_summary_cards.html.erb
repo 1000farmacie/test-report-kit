@@ -1,0 +1,86 @@
+<div class="cards">
+  <%# Diff Coverage card %>
+  <div class="card"<% if diff_cov && diff_cov.passed == false %> style="border-color: rgba(239, 68, 68, 0.3);"<% end %>>
+    <div class="card-glow" style="background: <%= diff_cov && diff_cov.passed == false ? 'var(--red)' : 'var(--green)' %>;"></div>
+    <div class="card-label">Diff Coverage</div>
+    <% if diff_cov -%>
+    <div class="card-value" style="color: <%= coverage_color(diff_cov.diff_coverage_pct) %>;">
+      <%= diff_cov.diff_coverage_pct ? "#{diff_cov.diff_coverage_pct}%" : "N/A" %>
+    </div>
+    <div class="card-sub"><%= diff_cov.covered_changed_lines %>/<%= diff_cov.executable_changed_lines %> changed lines<% if diff_cov.passed == false %> &middot; below <%= diff_cov.threshold %>%<% end %></div>
+    <% else -%>
+    <div class="card-value" style="color: var(--text-muted);">N/A</div>
+    <div class="card-sub">no diff available</div>
+    <% end -%>
+  </div>
+
+  <%# Overall Coverage card %>
+  <div class="card">
+    <div class="card-glow" style="background: <%= overall_coverage ? coverage_color(overall_coverage[:coverage_pct]) : 'var(--accent)' %>;"></div>
+    <div class="card-label">Coverage</div>
+    <% if overall_coverage -%>
+    <div class="card-value" style="color: <%= coverage_color(overall_coverage[:coverage_pct]) %>;">
+      <%= overall_coverage[:coverage_pct] %>%
+    </div>
+    <div class="card-sub">branch: <%= overall_coverage[:branch_coverage_pct] %>% &middot; threshold: <%= @config.coverage_threshold %>%</div>
+    <% else -%>
+    <div class="card-value" style="color: var(--text-muted);">N/A</div>
+    <div class="card-sub">no coverage data</div>
+    <% end -%>
+  </div>
+
+  <%# Suite Duration card %>
+  <div class="card">
+    <div class="card-glow" style="background: var(--accent);"></div>
+    <div class="card-label">Suite Duration</div>
+    <% if rspec_summary -%>
+    <div class="card-value" style="color: var(--text-primary);"><%= rspec_summary[:duration_formatted] %></div>
+    <div class="card-sub"><%= format_number(rspec_summary[:example_count]) %> examples &middot; <%= rspec_summary[:pending_count] %> pending</div>
+    <% else -%>
+    <div class="card-value" style="color: var(--text-muted);">N/A</div>
+    <div class="card-sub">no rspec data</div>
+    <% end -%>
+  </div>
+
+  <%# Slowest Test card %>
+  <div class="card">
+    <div class="card-glow" style="background: var(--red);"></div>
+    <div class="card-label">Slowest Test</div>
+    <% if slowest_tests.any? -%>
+    <div class="card-value" style="color: var(--red);"><%= slowest_tests.first[:duration] %>s</div>
+    <div class="card-sub"><%= h(slowest_tests.first[:description].to_s[0..50]) %></div>
+    <% else -%>
+    <div class="card-value" style="color: var(--text-muted);">N/A</div>
+    <div class="card-sub">no test data</div>
+    <% end -%>
+  </div>
+
+  <%# Factory Creates card %>
+  <div class="card">
+    <div class="card-glow" style="background: var(--orange);"></div>
+    <div class="card-label">Factory Creates</div>
+    <% if factory_health -%>
+    <div class="card-value" style="color: var(--orange);"><%= format_number(factory_health[:total_count]) %></div>
+    <div class="card-sub"><%= factory_health[:total_uniq_factories] %> unique factories</div>
+    <% else -%>
+    <div class="card-value" style="color: var(--text-muted);">N/A</div>
+    <div class="card-sub">no factory data</div>
+    <% end -%>
+  </div>
+</div>
+
+<% ru = resource_usage -%>
+<% ep = event_prof_data -%>
+<% if ru || ep -%>
+<div style="display: flex; gap: 24px; margin-bottom: 24px; font-family: var(--mono); font-size: 12px; color: var(--text-muted); padding: 0 4px;">
+  <% if ru && ru["peak_memory_mb"] -%>
+  <span>peak memory <span style="color: var(--text-secondary); font-weight: 600;"><%= ru["peak_memory_mb"] %> MB</span></span>
+  <% end -%>
+  <% if ru && ru["cpu_user_seconds"] -%>
+  <span>cpu <span style="color: var(--text-secondary); font-weight: 600;"><%= ru["cpu_user_seconds"] %>s</span> user / <span style="color: var(--text-secondary); font-weight: 600;"><%= ru["cpu_system_seconds"] %>s</span> sys</span>
+  <% end -%>
+  <% if ep && ep["total_events"] -%>
+  <span><%= h(ep["event"]) %> events <span style="color: var(--text-secondary); font-weight: 600;"><%= format_number(ep["total_events"]) %></span></span>
+  <% end -%>
+</div>
+<% end -%>

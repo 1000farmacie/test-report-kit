@@ -1,0 +1,35 @@
+{
+  "total_time": "01:30.000",
+  "total_setup_time": "00:45.000",
+  "suites": [
+    {
+      "description": "UsersController",
+      "location": "./spec/controllers/users_controller_spec.rb:1",
+      "total_time": "00:20.000",
+      "example_count": 15,
+      "before_time": "00:08.000",
+      "let_time": "00:06.345",
+      "example_time": "00:05.655",
+      "before_pct": 40.0,
+      "let_pct": 31.73,
+      "example_pct": 28.27,
+      "lets": [
+        { "name": "current_user", "duration": "00:02.123", "count": 8 },
+        { "name": "admin_user", "duration": "00:01.456", "count": 5 }
+      ]
+    },
+    {
+      "description": "CartOptimizerSpec",
+      "location": "./spec/services/cart_optimizer_spec.rb:1",
+      "total_time": "00:38.600",
+      "example_count": 22,
+      "before_time": "00:23.500",
+      "let_time": "00:05.800",
+      "example_time": "00:09.300",
+      "before_pct": 60.88,
+      "let_pct": 15.03,
+      "example_pct": 24.09,
+      "lets": []
+    }
+  ]
+}

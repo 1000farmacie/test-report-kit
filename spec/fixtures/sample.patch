@@ -1,0 +1,57 @@
+diff --git a/app/services/cart_optimizer.rb b/app/services/cart_optimizer.rb
+index abc1234..def5678 100644
+--- a/app/services/cart_optimizer.rb
++++ b/app/services/cart_optimizer.rb
+@@ -3,0 +4,3 @@
++  def optimize_cart(cart)
++    raise CartOptimizationError, "no pharmacies available" if available_pharmacies.empty?
++    select_best_pharmacy(cart)
+@@ -10,1 +14,1 @@
+-  validates :total, presence: true
++  validates :total, presence: true, numericality: { greater_than: 0 }
+@@ -20,0 +25,4 @@
++  def calculate_absorption(pharmacy, product)
++    ratio = pharmacy.capacity / product.weight
++    ratio > max_absorption ? max_absorption : ratio
++  end
+diff --git a/app/models/order.rb b/app/models/order.rb
+index 111aaaa..222bbbb 100644
+--- a/app/models/order.rb
++++ b/app/models/order.rb
+@@ -5,0 +6,2 @@
++  def cancel!(reason: nil)
++    update!(status: :cancelled, cancelled_at: Time.current, cancel_reason: reason)
+diff --git a/app/services/pricing_engine.rb b/app/services/pricing_engine.rb
+new file mode 100644
+index 0000000..333cccc
+--- /dev/null
++++ b/app/services/pricing_engine.rb
+@@ -0,0 +1,5 @@
++class PricingEngine
++  def calculate(product, pharmacy)
++    product.base_price * pharmacy.markup_rate
++  end
++end
+diff --git a/spec/models/order_spec.rb b/spec/models/order_spec.rb
+index 444dddd..555eeee 100644
+--- a/spec/models/order_spec.rb
++++ b/spec/models/order_spec.rb
+@@ -10,0 +11,5 @@
++  describe "#cancel!" do
++    it "sets status to cancelled" do
++      order.cancel!
++      expect(order.status).to eq("cancelled")
++    end
+diff --git a/config/routes.rb b/config/routes.rb
+index 666ffff..777gggg 100644
+--- a/config/routes.rb
++++ b/config/routes.rb
+@@ -5,0 +6,1 @@
++  resources :orders, only: [:create]
+diff --git a/README.md b/README.md
+index 888hhhh..999iiii 100644
+--- a/README.md
++++ b/README.md
+@@ -1,1 +1,1 @@
+-# Old Title
++# New Title

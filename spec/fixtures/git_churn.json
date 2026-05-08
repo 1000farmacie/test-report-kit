@@ -1,0 +1,15 @@
+{
+  "days": 90,
+  "files": {
+    "app/services/cart_optimizer.rb": 18,
+    "app/services/payment_service.rb": 11,
+    "app/models/order.rb": 14,
+    "app/services/pharmacy_selector.rb": 9,
+    "app/services/pricing_engine.rb": 22,
+    "app/models/product.rb": 4,
+    "app/jobs/inventory_sync_job.rb": 3,
+    "app/models/subscription.rb": 7,
+    "app/controllers/api/v1/orders_controller.rb": 6,
+    "app/services/stripe_gateway.rb": 8
+  }
+}

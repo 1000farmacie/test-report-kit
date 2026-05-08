@@ -1,0 +1,100 @@
+<% if failed_tests.any? -%>
+
+<div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+  <div style="font-size: 48px; font-weight: 800; color: var(--red); letter-spacing: -2px;"><%= failed_tests.size %></div>
+  <div>
+    <div style="font-size: 14px; font-weight: 700; color: var(--text-primary);">test<%= failed_tests.size == 1 ? '' : 's' %> failed</div>
+    <div style="font-size: 12px; color: var(--text-muted); font-family: var(--mono); margin-top: 4px;">
+      <%= failed_tests.size %> of <%= rspec_summary ? rspec_summary[:example_count] : '?' %> examples
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-header">
+    <div class="table-title">Failed Tests</div>
+    <span style="font-size: 11px; color: var(--text-muted);">click a test to view details</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Test</th>
+        <th>File</th>
+        <th>Duration</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% failed_tests.each do |t| -%>
+      <%
+        parts = t[:file].to_s.sub(%r{^\./}, '').split(':')
+        test_file = parts[0]
+        test_line = parts[1]&.to_i
+      -%>
+      <tr class="failure-row" style="cursor: pointer;">
+        <td style="color: var(--text-primary); max-width: 350px;"><%= h(t[:description]) %></td>
+        <td><span class="file-path"><%= file_link(test_file, line: test_line) %><%= test_line ? ":#{test_line}" : "" %></span></td>
+        <td><span class="num"><%= t[:duration] %>s</span></td>
+        <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <% if t[:exception] -%>
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--red);"><%= h(t[:exception][:message].to_s[0..80]) %></span>
+          <% end -%>
+        </td>
+      </tr>
+      <tr class="failure-detail" style="display:none;">
+        <td colspan="4" style="padding: 0;">
+          <div style="padding: 12px 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+            <% if t[:exception] -%>
+            <div style="margin-bottom: 12px; padding: 12px 16px; background: var(--red-dim); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px;">
+              <div style="font-size: 11px; color: var(--red); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 6px;">
+                <%= h(t[:exception][:class]) %>
+              </div>
+              <div style="font-family: var(--mono); font-size: 12px; color: var(--text-primary); line-height: 1.6; white-space: pre-wrap;"><%= h(t[:exception][:message]) %></div>
+              <% if t[:exception][:backtrace]&.any? -%>
+              <div style="font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 8px; line-height: 1.6;">
+                <% t[:exception][:backtrace].each do |line| -%>
+                <div><%= h(line) %></div>
+                <% end -%>
+              </div>
+              <% end -%>
+            </div>
+            <% end -%>
+            <% source_lines = build_test_source(test_file, test_line) -%>
+            <% if source_lines -%>
+            <div style="display: flex; gap: 16px;">
+              <div style="flex: 1;">
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Test Source</div>
+                <div class="file-viewer" style="max-height: 300px;">
+                  <% source_lines.each do |sl| -%>
+                  <div class="cov-line cov-line-none">
+                    <% if @config.github_url -%>
+                    <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= sl[:line] %>" target="_blank" rel="noopener" class="cov-line-num"><%= sl[:line] %></a>
+                    <% else -%>
+                    <div class="cov-line-num"><%= sl[:line] %></div>
+                    <% end -%>
+                    <div class="cov-line-code"><%= highlight_ruby(sl[:content]) %></div>
+                  </div>
+                  <% end -%>
+                </div>
+              </div>
+              <% if @config.github_url -%>
+              <div style="flex-shrink: 0; padding-top: 24px;">
+                <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= test_line %>" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                  <%= GH_ICON_SVG %>
+                  View on GitHub
+                </a>
+              </div>
+              <% end -%>
+            </div>
+            <% end -%>
+          </div>
+        </td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+</div>
+
+<% else -%>
+<div class="empty-state" style="color: var(--green);">All tests passed.</div>
+<% end -%>

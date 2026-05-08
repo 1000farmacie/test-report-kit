@@ -1,0 +1,136 @@
+<%# High-Risk Files %>
+<div class="insight-section">
+  <div class="insight-header">
+    <div class="insight-icon" style="background: var(--red-dim); color: var(--red);">&#128293;</div>
+    <div class="insight-title">High-Risk Files</div>
+    <div class="insight-count">high churn + low coverage</div>
+  </div>
+  <% if insights[:high_risk]&.any? -%>
+  <div class="section-desc" style="padding: 12px 20px 0;">files changed &gt;5 times in 90 days with &lt;70% coverage. these are where bugs are most likely to ship.</div>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th data-sort>Coverage</th>
+        <th data-sort>Churn</th>
+        <th data-sort>Risk Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% insights[:high_risk].each do |f| -%>
+      <tr data-in-pr="<%= in_pr?(f[:path]) %>">
+        <td><span class="file-path"><%= file_link(f[:path]) %></span></td>
+        <td><span class="num" style="color: <%= coverage_color(f[:coverage_pct]) %>;"><%= f[:coverage_pct] %>%</span></td>
+        <td><span class="num"><%= f[:churn] %> commits</span></td>
+        <td><span class="risk-score" style="background: <%= risk_bg(f[:risk_score]) %>; color: <%= risk_color(f[:risk_score]) %>;"><%= f[:risk_score] %></span></td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+  <div class="pr-empty-note">No high-risk files among PR changes. Switch scope to "Everything" to see all.</div>
+  <% else -%>
+  <div class="empty-state">No high-risk files detected.</div>
+  <% end -%>
+</div>
+
+<%# Over-Tested Files %>
+<div class="insight-section">
+  <div class="insight-header">
+    <div class="insight-icon" style="background: var(--yellow-dim); color: var(--yellow);">&#9201;&#65039;</div>
+    <div class="insight-title">Over-Tested Files</div>
+    <div class="insight-count">high coverage + very slow</div>
+  </div>
+  <% if insights[:over_tested]&.any? -%>
+  <div class="section-desc" style="padding: 12px 20px 0;">files with &gt;90% coverage but tests taking &gt;10s total. likely testing implementation details or using excessive setup.</div>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th data-sort>Coverage</th>
+        <th data-sort>Total Test Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% insights[:over_tested].each do |f| -%>
+      <tr data-in-pr="<%= in_pr?(f[:path]) %>">
+        <td><span class="file-path"><%= file_link(f[:path]) %></span></td>
+        <td><span class="num" style="color: var(--green);"><%= f[:coverage_pct] %>%</span></td>
+        <td><span class="num" style="color: var(--red);"><%= f[:total_test_time] %>s</span></td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+  <div class="pr-empty-note">No over-tested files among PR changes. Switch scope to "Everything" to see all.</div>
+  <% else -%>
+  <div class="empty-state">No over-tested files detected.</div>
+  <% end -%>
+</div>
+
+<%# False Security %>
+<div class="insight-section">
+  <div class="insight-header">
+    <div class="insight-icon" style="background: var(--purple); color: #fff;">&#127917;</div>
+    <div class="insight-title">False Security</div>
+    <div class="insight-count">&gt;70% time in hooks</div>
+  </div>
+  <% if insights[:false_security]&.any? -%>
+  <div class="section-desc" style="padding: 12px 20px 0;">files where most test time is in before/let hooks, not actual assertions. coverage numbers look good but tests may be shallow.</div>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Total Time</th>
+        <th>Hook Time</th>
+        <th>Example Time</th>
+        <th data-sort>Hook %</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% insights[:false_security].each do |f| -%>
+      <% loc_p = f[:location].to_s.sub('./', '').split(':') -%>
+      <tr data-in-pr="<%= in_pr_spec?(loc_p[0]) %>">
+        <td><span class="file-path"><%= file_link(loc_p[0], line: loc_p[1]&.to_i) %></span></td>
+        <td><span class="num"><%= f[:total_time] %></span></td>
+        <td><span class="num" style="color: var(--red);"><%= f[:hook_time] %></span></td>
+        <td><span class="num" style="color: var(--green);"><%= f[:example_time] %></span></td>
+        <td><span class="risk-score" style="background: <%= f[:hook_pct] >= 70 ? 'var(--red-dim)' : 'var(--yellow-dim)' %>; color: <%= f[:hook_pct] >= 70 ? 'var(--red)' : 'var(--yellow)' %>;"><%= f[:hook_pct] %>%</span></td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+  <div class="pr-empty-note">No false-security suites among tests touching PR files. Switch scope to "Everything" to see all.</div>
+  <% else -%>
+  <div class="empty-state">No false security issues detected.</div>
+  <% end -%>
+</div>
+
+<%# Untested Hot Paths %>
+<div class="insight-section">
+  <div class="insight-header">
+    <div class="insight-icon" style="background: var(--red-dim); color: var(--red);">&#9888;&#65039;</div>
+    <div class="insight-title">Untested Hot Paths</div>
+    <div class="insight-count">active development + low coverage</div>
+  </div>
+  <% if insights[:untested_hot_paths]&.any? -%>
+  <div class="section-desc" style="padding: 12px 20px 0;">files with &gt;10 commits in 90 days and &lt;40% test coverage. these are being actively worked on with insufficient testing.</div>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th data-sort>Churn</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% insights[:untested_hot_paths].each do |f| -%>
+      <tr data-in-pr="<%= in_pr?(f[:path]) %>">
+        <td><span class="file-path"><%= file_link(f[:path]) %></span></td>
+        <td><span class="num" style="color: var(--red);"><%= f[:churn] %> commits</span></td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+  <div class="pr-empty-note">No untested hot paths among PR changes. Switch scope to "Everything" to see all.</div>
+  <% else -%>
+  <div class="empty-state">No untested hot paths detected.</div>
+  <% end -%>
+</div>

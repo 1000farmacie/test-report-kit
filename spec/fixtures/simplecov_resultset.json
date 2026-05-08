@@ -1,0 +1,15 @@
+{
+  "RSpec": {
+    "coverage": {
+      "/app/app/services/cart_optimizer.rb": {
+        "lines": [1, 1, null, 1, 0, 1, null, null, null, 1, 1, null, null, 1, 0, null, null, null, null, null, null, null, null, null, 0, 0, 0, null, null],
+        "branches": {}
+      },
+      "/app/app/models/order.rb": {
+        "lines": [1, 1, 1, null, 1, 0, 0, null, 1, null],
+        "branches": {}
+      }
+    },
+    "timestamp": 1711411200
+  }
+}

@@ -1,0 +1,14 @@
+*.gem
+*.rbc
+.bundle
+.config
+coverage
+pkg
+spec/reports
+tmp
+.yardoc
+_yardoc
+doc
+Gemfile.lock
+*.png
+.playwright-mcp/

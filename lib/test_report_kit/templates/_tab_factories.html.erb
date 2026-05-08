@@ -1,0 +1,112 @@
+<% if factory_health -%>
+
+<div class="table-wrap">
+  <div class="table-header">
+    <div class="table-title">Factory Usage Ranking</div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 11px; color: var(--text-muted);">click a factory to view details</span>
+      <span style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);"><%= format_number(factory_health[:total_count]) %> total creates &middot; <%= factory_health[:total_time] %></span>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th data-sort>Factory</th>
+        <th data-sort>Creates</th>
+        <th data-sort>Top-Level</th>
+        <th data-sort>Cascade Ratio</th>
+        <th data-sort>Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% factory_health[:stats].each do |s| -%>
+      <tr class="factory-row" style="cursor: pointer;">
+        <td><span class="num" style="color: var(--cyan); font-weight: 600;">:<%= h(s[:name]) %></span><%= factory_file_link(s[:name]) %></td>
+        <td><span class="num" style="color: <%= s[:total_count] >= 1000 ? 'var(--red)' : s[:total_count] >= 500 ? 'var(--orange)' : 'var(--text-secondary)' %>; font-weight: 700;"><%= format_number(s[:total_count]) %></span></td>
+        <td><span class="num"><%= format_number(s[:top_level_count]) %></span></td>
+        <td><span class="risk-score" style="background: <%= s[:cascade_ratio] >= 5 ? 'var(--red-dim)' : s[:cascade_ratio] >= 3 ? 'var(--yellow-dim)' : 'var(--green-dim)' %>; color: <%= s[:cascade_ratio] >= 5 ? 'var(--red)' : s[:cascade_ratio] >= 3 ? 'var(--yellow)' : 'var(--green)' %>;"><%= s[:cascade_ratio] %>x</span></td>
+        <td><span class="num"><%= s[:total_time].is_a?(Numeric) ? "#{s[:total_time].round(1)}s" : s[:total_time] %></span></td>
+      </tr>
+      <tr class="factory-detail" style="display:none;">
+        <td colspan="5" style="padding: 0;">
+          <div style="padding: 16px 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+              <%# Stats panel %>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 8px;">Share of Total</div>
+                <div style="margin-bottom: 6px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+                    <span>Creates</span>
+                    <span style="color: var(--text-secondary);"><%= s[:count_pct] %>%</span>
+                  </div>
+                  <div style="height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
+                    <div style="width: <%= s[:count_pct] %>%; height: 100%; background: var(--cyan); opacity: 0.7; border-radius: 3px;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 2px;">
+                    <span>Time</span>
+                    <span style="color: var(--text-secondary);"><%= s[:time_pct] %>%</span>
+                  </div>
+                  <div style="height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
+                    <div style="width: <%= s[:time_pct] %>%; height: 100%; background: var(--orange); opacity: 0.7; border-radius: 3px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <%# Dependency inference %>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 8px;">Dependencies</div>
+                <div style="font-family: var(--mono); font-size: 12px; line-height: 1.8;">
+                  <% if s[:dep_per_call] > 0 -%>
+                  <div style="color: var(--text-secondary);">Each <span style="color: var(--cyan);">:<%= h(s[:name]) %></span> create triggers ~<span style="color: <%= s[:dep_per_call] >= 3 ? 'var(--red)' : s[:dep_per_call] >= 1 ? 'var(--yellow)' : 'var(--green)' %>; font-weight: 600;"><%= s[:dep_per_call] %></span> additional factory creates</div>
+                  <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">
+                    <%= format_number(s[:top_level_count]) %> direct &rarr; <%= format_number(s[:total_count]) %> total (including associations)
+                  </div>
+                  <% else -%>
+                  <div style="color: var(--green);">No cascade dependencies &mdash; this factory is standalone</div>
+                  <% end -%>
+                </div>
+              </div>
+
+              <%# Optimization impact %>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 8px;">Optimization Potential</div>
+                <div style="font-family: var(--mono); font-size: 12px; line-height: 1.8;">
+                  <% if s[:total_count] >= 20 -%>
+                  <div style="color: var(--text-secondary);">Converting 50% to <code style="background: var(--bg-elevated); padding: 1px 6px; border-radius: 3px; font-size: 11px; color: var(--cyan);">build_stubbed</code>:</div>
+                  <div style="color: var(--green); font-size: 11px; margin-top: 4px;">
+                    Saves ~<%= format_number(s[:stub_saves]) %> DB inserts<% if s[:stub_time_saved] > 0 %> and ~<%= s[:stub_time_saved] %>s<% end %>
+                  </div>
+                  <% else -%>
+                  <div style="color: var(--text-muted);">Low usage &mdash; optimization not critical</div>
+                  <% end -%>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <% end -%>
+    </tbody>
+  </table>
+</div>
+
+<%# Suggestions %>
+<% if factory_health[:suggestions]&.any? -%>
+<div class="insight-section">
+  <div class="insight-header">
+    <div class="insight-icon" style="background: var(--yellow-dim); color: var(--yellow);">&#128161;</div>
+    <div class="insight-title">Optimization Suggestions</div>
+  </div>
+  <% factory_health[:suggestions].each do |s| -%>
+  <div class="suggestion">
+    <strong style="color: <%= severity_color(s[:severity]) %>;"><%= s[:severity] %>:</strong> <%= s[:message] %>
+  </div>
+  <% end -%>
+</div>
+<% end -%>
+
+<% else -%>
+<div class="empty-state">No factory profiling data available. Run tests with <code>FPROF=json</code> enabled.</div>
+<% end -%>

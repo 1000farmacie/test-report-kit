@@ -1,0 +1,51 @@
+{
+  "total_count": 15832,
+  "total_top_level_count": 6200,
+  "total_time": "45.23s",
+  "total_run_time": "342.70s",
+  "total_uniq_factories": 12,
+  "stats": [
+    {
+      "name": "order",
+      "total_count": 2847,
+      "top_level_count": 1200,
+      "total_time": 12.5,
+      "top_level_time": 8.2
+    },
+    {
+      "name": "user",
+      "total_count": 1923,
+      "top_level_count": 800,
+      "total_time": 8.3,
+      "top_level_time": 5.1
+    },
+    {
+      "name": "pharmacy",
+      "total_count": 1456,
+      "top_level_count": 600,
+      "total_time": 5.2,
+      "top_level_time": 3.4
+    },
+    {
+      "name": "product",
+      "total_count": 1201,
+      "top_level_count": 900,
+      "total_time": 3.1,
+      "top_level_time": 2.8
+    },
+    {
+      "name": "order_item",
+      "total_count": 891,
+      "top_level_count": 120,
+      "total_time": 4.8,
+      "top_level_time": 2.1
+    },
+    {
+      "name": "address",
+      "total_count": 743,
+      "top_level_count": 740,
+      "total_time": 1.2,
+      "top_level_time": 1.1
+    }
+  ]
+}

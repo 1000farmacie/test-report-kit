@@ -1,0 +1,54 @@
+{
+  "version": "3.12.0",
+  "seed": 12345,
+  "summary": {
+    "duration": 342.7,
+    "example_count": 4521,
+    "failure_count": 0,
+    "pending_count": 23,
+    "errors_outside_of_examples_count": 0
+  },
+  "summary_line": "4521 examples, 0 failures, 23 pending",
+  "examples": [
+    {
+      "id": "./spec/models/order_spec.rb[1:3:1]",
+      "description": "handles payment capture timeout",
+      "full_description": "Order#process handles payment capture timeout",
+      "status": "passed",
+      "file_path": "./spec/models/order_spec.rb",
+      "line_number": 342,
+      "run_time": 12.41,
+      "pending_message": null
+    },
+    {
+      "id": "./spec/services/cart_optimizer_spec.rb[1:2:1]",
+      "description": "selects pharmacy with lowest total across 50 products",
+      "full_description": "CartOptimizer selects pharmacy with lowest total across 50 products",
+      "status": "passed",
+      "file_path": "./spec/services/cart_optimizer_spec.rb",
+      "line_number": 187,
+      "run_time": 9.83,
+      "pending_message": null
+    },
+    {
+      "id": "./spec/services/shipping_calculator_spec.rb[1:1:1]",
+      "description": "calculates standard shipping",
+      "full_description": "ShippingCalculator calculates standard shipping",
+      "status": "passed",
+      "file_path": "./spec/services/shipping_calculator_spec.rb",
+      "line_number": 10,
+      "run_time": 0.45,
+      "pending_message": null
+    },
+    {
+      "id": "./spec/models/product_spec.rb[1:1:1]",
+      "description": "is pending review",
+      "full_description": "Product is pending review",
+      "status": "pending",
+      "file_path": "./spec/models/product_spec.rb",
+      "line_number": 5,
+      "run_time": 0.001,
+      "pending_message": "Not yet implemented"
+    }
+  ]
+}

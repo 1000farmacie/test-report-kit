@@ -2,8 +2,6 @@
 
 RSpec coverage + profiling HTML dashboard. Reads SimpleCov and test-prof output files, generates a single self-contained HTML report.
 
-**Live demos:** [passing](https://nicolasacchi.github.io/test_report_kit_demo/main/) | [diff coverage](https://nicolasacchi.github.io/test_report_kit_demo/feature-add-services/) | [failures](https://nicolasacchi.github.io/test_report_kit_demo/feature-failing-tests/) | [parallel](https://nicolasacchi.github.io/test_report_kit_demo/feature-parallel-tests/)
-
 ## Setup
 
 ### From GitHub
@@ -11,7 +9,7 @@ RSpec coverage + profiling HTML dashboard. Reads SimpleCov and test-prof output 
 ```ruby
 # Gemfile
 group :test do
-  gem "test_report_kit", github: "nicolasacchi/test_report_kit", branch: "main"
+  gem "test_report_kit", github: "1000farmacie/test-report-kit", tag: "v0.3.1"
   gem "simplecov", require: false
   gem "simplecov-json", require: false
   gem "test-prof", "~> 1.0"
@@ -131,48 +129,90 @@ All written to `output_dir` (default `tmp/test_report/`):
 | `rspec_dissect.json` | RSpecDissect data |
 | `git_churn.json` | Per-file commit counts (last N days) |
 
-## CI Example
+## CI integration (sticky PR comment)
 
-See [demo workflow](https://github.com/nicolasacchi/test_report_kit_demo/blob/main/.github/workflows/test-report.yml) for GitHub Actions with PR comments and Pages deployment.
-
-## Parallel CI
-
-For matrix-based parallel test runs across multiple containers:
+The recommended CI shape for matrix-based parallel test runs that posts a single sticky PR comment with the merged report. Two jobs: `rspec` (runs the matrix shards) and `report` (merges and comments).
 
 ```yaml
 jobs:
-  test:
+  rspec:
     strategy:
       matrix:
         include:
-          - node: 0
+          - shard: 0
             specs: "spec/models/ spec/jobs/"
-          - node: 1
+          - shard: 1
             specs: "spec/services/"
     steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # diff coverage needs full history
+      - uses: ruby/setup-ruby@v1
+        with: { bundler-cache: true }
       - run: bundle exec rake test_report:full
         env:
-          TEST_ENV_NUMBER: ${{ matrix.node }}
           TEST_REPORT_SPECS: ${{ matrix.specs }}
+          TEST_ENV_NUMBER: ${{ matrix.shard }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: test-results-${{ matrix.node }}
-          include-hidden-files: true  # required for .resultset.json
+          name: test-results-${{ matrix.shard }}
+          include-hidden-files: true   # required for SimpleCov's .resultset.json
           path: |
             coverage/
             tmp/test_report/
             tmp/test_prof/
 
   report:
-    needs: test
+    needs: rspec
+    if: always()
+    runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: ruby/setup-ruby@v1
+        with: { bundler-cache: true }
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts/
+          path: artifacts
+          pattern: test-results-*
       - run: bundle exec rake "test_report:merge[artifacts/test-results-*]"
+
+      - name: Upload merged report
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: tmp/test_report/
+          include-hidden-files: true
+
+      - name: Find PR number
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Post sticky PR comment
+        if: steps.pr.outputs.number != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ steps.pr.outputs.number }}
+          header: test-report-kit
+          path: tmp/test_report/report.md
+
+      - name: Diagnose missing comment
+        if: steps.pr.outputs.number == ''
+        run: echo "::warning::No open PR found for branch ${{ github.head_ref || github.ref_name }} — skipping sticky comment."
 ```
 
-See [parallel demo](https://nicolasacchi.github.io/test_report_kit_demo/feature-parallel-tests/).
+Key points:
+
+- `include-hidden-files: true` is mandatory — SimpleCov writes `.resultset.json` (leading dot) and `actions/upload-artifact@v4` skips dotfiles by default.
+- `fetch-depth: 0` is required on both jobs — diff coverage walks the git history to compute the diff.
+- The sticky comment uses the `header:` to dedupe; subsequent CI runs replace the previous comment in place rather than stacking.
+- `TEST_ENV_NUMBER` becomes part of SimpleCov's `command_name` so per-shard `.resultset.json` files don't collide when merged.
 
 ## Architecture
 
@@ -191,8 +231,8 @@ Runner → shells out to rspec with ENV vars (FPROF, EVENT_PROF, RD_PROF)
 ## Development
 
 ```bash
-git clone https://github.com/nicolasacchi/test_report_kit.git
-cd test_report_kit
+git clone git@github.com:1000farmacie/test-report-kit.git
+cd test-report-kit
 docker compose build
 docker compose run --rm gem bundle exec rspec   # 87 specs
 ```

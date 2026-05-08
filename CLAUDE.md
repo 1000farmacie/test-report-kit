@@ -2,10 +2,7 @@
 
 A Ruby gem that generates a unified RSpec coverage + profiling HTML dashboard. Replaces Codecov with a free, self-hosted solution.
 
-**Repos:**
-- Gem: github.com/nicolasacchi/test_report_kit
-- Demo: github.com/nicolasacchi/test_report_kit_demo
-- Live: nicolasacchi.github.io/test_report_kit_demo/
+**Repo:** github.com/1000farmacie/test-report-kit
 
 ## Running Tests
 
@@ -190,34 +187,6 @@ Key methods available in templates (via `generator.rb`):
 6. **gh-pages deploy** uses concurrency group to serialize deploys from different branches. Each branch deploys to its own subdirectory.
 7. **FactoryProf** writes to `tmp/test_prof/test-prof.result.json` (not `factory_prof.json`). The DataLoader globs for `test-prof.result*.json`.
 8. **EventProf/RSpecDissect** output text to stdout. The Runner captures stdout to a file, splits by section headers, then parses text→JSON.
-
-## Demo App
-
-The demo app (`test_report_kit_demo`) has deliberately varying test quality:
-
-| Component | Coverage | Design Purpose |
-|-----------|----------|---------------|
-| Product | >90% | Well-tested model |
-| Pharmacy | >90% | Well-tested model |
-| Order | ~65% | cancel!/cod? deliberately untested |
-| CartOptimizer | ~45% | Only happy path tested |
-| PricingEngine | ~29% | Poorly tested (untested hot path in insights) |
-| PaymentService | ~55% | refund!/timeout not tested |
-| ShippingCalculator | ~95% | Fully tested |
-
-### Branches
-- `main` — all passing, full data on all tabs
-- `feature/add-services` — diff coverage data (modifies existing files)
-- `feature/failing-tests` — 4 intentional failures with error details
-
-### Git History
-20+ backdated commits creating realistic churn:
-- pricing_engine.rb: 11 commits → triggers "Untested Hot Paths" insight
-- cart_optimizer.rb: 6 commits → triggers "High-Risk Files" insight
-- order.rb: 6 commits → triggers "High-Risk Files" insight
-
-### CI/CD
-GitHub Actions workflow: test → deploy to GitHub Pages (per-branch subdirectories with landing page).
 
 ## Parallel Support
 

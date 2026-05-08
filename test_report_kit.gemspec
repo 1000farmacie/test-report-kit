@@ -13,6 +13,14 @@ Gem::Specification.new do |spec|
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.1"
 
+  spec.homepage = "https://github.com/1000farmacie/test-report-kit"
+  spec.metadata = {
+    "homepage_uri"    => spec.homepage,
+    "source_code_uri" => spec.homepage,
+    "bug_tracker_uri" => "#{spec.homepage}/issues",
+    "changelog_uri"   => "#{spec.homepage}/blob/main/CHANGELOG.md"
+  }
+
   spec.files         = Dir["lib/**/*", "exe/*", "LICENSE.txt"]
   spec.bindir        = "exe"
   spec.executables   = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }

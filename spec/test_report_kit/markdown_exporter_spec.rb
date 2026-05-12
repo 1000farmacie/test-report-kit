@@ -152,5 +152,97 @@ RSpec.describe TestReportKit::MarkdownExporter do
         expect(md).not_to include("## This PR")
       end
     end
+
+    context "when there are failing tests" do
+      let(:pr_related_failure) do
+        {
+          description: "Cart#optimize handles empty cart",
+          file: "./spec/services/cart_spec.rb:42",
+          duration: 0.12,
+          status: "failed",
+          slow: false,
+          exception: {
+            class: "RSpec::Expectations::ExpectationNotMetError",
+            message: "expected: 0\n     got: 1",
+            backtrace: []
+          }
+        }
+      end
+
+      let(:unrelated_failure) do
+        {
+          description: "weird helper does the thing",
+          file: "./spec/helpers/weird_helper_spec.rb:7",
+          duration: 0.04,
+          status: "failed",
+          slow: false,
+          exception: {
+            class: "NoMethodError",
+            message: "undefined method `bar' for nil:NilClass",
+            backtrace: []
+          }
+        }
+      end
+
+      let(:metrics) { super().merge(failed_tests: [pr_related_failure, unrelated_failure]) }
+
+      it "emits a Failing Tests section with each failure", :aggregate_failures do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+
+        expect(md).to include("## Failing Tests")
+        expect(md).to include("2 tests failing in this run.")
+        expect(md).to include("Cart#optimize handles empty cart")
+        expect(md).to include("`./spec/services/cart_spec.rb:42`")
+        expect(md).to include("RSpec::Expectations::ExpectationNotMetError")
+        expect(md).to include("expected: 0")
+      end
+
+      it "marks PR-related failures with 🔴 and a tag", :aggregate_failures do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+
+        expect(md).to include("### 🔴 `./spec/services/cart_spec.rb:42` — in PR-related file")
+        expect(md).to include("### `./spec/helpers/weird_helper_spec.rb:7`")
+        expect(md).not_to include("🔴 `./spec/helpers/weird_helper_spec.rb")
+      end
+
+      context "with more than MAX_FAILURES_IN_MARKDOWN failures" do
+        let(:many_failures) do
+          (1..15).map do |i|
+            {
+              description: "spec number #{i}",
+              file: "./spec/foo_spec.rb:#{i}",
+              duration: 0.01,
+              status: "failed",
+              slow: false,
+              exception: { class: "RuntimeError", message: "boom #{i}", backtrace: [] }
+            }
+          end
+        end
+        let(:metrics) { super().merge(failed_tests: many_failures) }
+
+        it "caps the rendered list and shows a remainder footer", :aggregate_failures do
+          exporter.export
+          md = File.read(File.join(tmpdir, "report.md"))
+
+          expect(md).to include("15 tests failing in this run.")
+          expect(md).to include("spec number 1")
+          expect(md).to include("spec number 10")
+          expect(md).not_to include("spec number 11")
+          expect(md).to include("…and 5 more. Full list in the HTML dashboard._")
+        end
+      end
+    end
+
+    context "when there are no failing tests" do
+      let(:metrics) { super().merge(failed_tests: []) }
+
+      it "omits the Failing Tests section entirely" do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+        expect(md).not_to include("## Failing Tests")
+      end
+    end
   end
 end

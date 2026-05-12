@@ -4,6 +4,17 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-12
+
+### Added
+- **`## Failing Tests` section in the markdown report** listing each failing
+  test with its spec `file:line`, full description, and exception class +
+  message (truncated to 500 bytes). Capped at 10 failures with a
+  "…and N more" footer pointing readers to the HTML dashboard for the rest;
+  tests whose spec file maps to a PR-changed source file are prefixed with
+  🔴 — the same "related" logic already used by `pr_metrics`. Removes the
+  need to download the HTML artifact to learn which test failed.
+
 ## [0.3.1] - 2026-05-08
 
 ### Changed

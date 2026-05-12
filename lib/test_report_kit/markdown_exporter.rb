@@ -10,6 +10,11 @@ module TestReportKit
     # blowing the limit.
     MAX_BYTES = 60_000
 
+    # Caps for the `## Failing Tests` section. Keeps the comment well under
+    # MAX_BYTES even on a heavily-failing suite; full failure list is in HTML.
+    MAX_FAILURES_IN_MARKDOWN = 10
+    FAILURE_MESSAGE_BYTES = 500
+
     def initialize(metrics:, diff_coverage:, config: TestReportKit.configuration)
       @metrics       = metrics
       @diff_coverage = diff_coverage
@@ -38,6 +43,7 @@ module TestReportKit
         sections = []
         sections << header_section
         sections << overall_section
+        sections << failures_section
         sections << pr_section
         sections << diff_coverage_section
         sections << action_items_section
@@ -80,6 +86,46 @@ module TestReportKit
         lines << "| Duration | #{rspec[:duration_formatted]} |"
       end
       lines << "| Factory Creates | #{factory[:total_count]} |" if factory
+      lines.join("\n")
+    end
+
+    # Lists individual failing tests with file:line, description, and exception
+    # message. Tests whose spec file maps to a PR-changed source file (per
+    # MetricsCalculator#candidate_spec_paths) are prefixed with 🔴 — the same
+    # "related" logic used by pr_metrics elsewhere.
+    def failures_section
+      failures = @metrics[:failed_tests] || []
+      return nil if failures.empty?
+
+      pr_spec_paths = @metrics.dig(:pr_metrics, :pr_spec_paths) || []
+      shown = failures.first(MAX_FAILURES_IN_MARKDOWN)
+      remaining = failures.size - shown.size
+
+      lines = ["## Failing Tests\n"]
+      lines << "#{failures.size} test#{'s' unless failures.size == 1} failing in this run."
+      lines << ""
+
+      shown.each do |t|
+        spec_path = t[:file].to_s.sub(/:\d+\z/, "").sub(%r{^\./}, "")
+        pr_related = pr_spec_paths.include?(spec_path)
+        marker = pr_related ? "🔴 " : ""
+        related_tag = pr_related ? " — in PR-related file" : ""
+
+        lines << "### #{marker}`#{t[:file]}`#{related_tag}"
+        lines << "**#{t[:description]}**"
+        exc = t[:exception]
+        if exc
+          msg = "#{exc[:class]}:\n#{exc[:message]}"
+          msg = "#{msg.byteslice(0, FAILURE_MESSAGE_BYTES)}…" if msg.bytesize > FAILURE_MESSAGE_BYTES
+          lines << "```"
+          lines << msg
+          lines << "```"
+        end
+        lines << ""
+      end
+
+      lines << "_…and #{remaining} more. Full list in the HTML dashboard._" if remaining > 0
+
       lines.join("\n")
     end
 

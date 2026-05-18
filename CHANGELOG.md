@@ -4,6 +4,20 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-18
+
+### Changed
+- **RSpec stdout is now teed to the console** in addition to the captured
+  `test_output.log`. Previously the runner redirected the child process's
+  output straight to the log file, leaving CI step logs with only
+  `TestReportKit: Running RSpec...` / `RSpec finished with exit code 1` and
+  nothing in between. Now progress dots, the `Failures:` block, and the final
+  summary stream to the terminal as RSpec emits them, so a failing CI step is
+  diagnosable without downloading the HTML artifact or opening the PR comment.
+  Implemented via `IO.popen` + `readpartial`; byte-for-byte content of
+  `test_output.log` is preserved so the downstream profiler parsers keep
+  working unchanged.
+
 ## [0.4.0] - 2026-05-12
 
 ### Added

@@ -140,9 +140,24 @@ module TestReportKit
 
       puts "TestReportKit: Running RSpec..."
       start_cpu = Process.times
-      pid = spawn(env, *cmd_parts, out: output_log, err: [:child, :out])
-      Process.wait(pid)
+
+      # Tee the child's combined stdout/stderr to both $stdout (so CI step logs
+      # show progress and failures in real time) and `output_log` (which
+      # downstream profiler parsers still read byte-for-byte). `readpartial`
+      # forwards each chunk as soon as the OS makes it available; the explicit
+      # $stdout.flush keeps GH Actions from buffering line-bursts at job end.
+      File.open(output_log, "wb") do |log|
+        IO.popen([env, *cmd_parts, err: [:child, :out]], "rb") do |io|
+          until io.eof?
+            chunk = io.readpartial(4096)
+            $stdout.write(chunk)
+            $stdout.flush
+            log.write(chunk)
+          end
+        end
+      end
       rspec_exit = $?.exitstatus
+
       end_cpu = Process.times
 
       save_resource_usage(start_cpu, end_cpu)

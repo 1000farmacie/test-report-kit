@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "time"
+require "digest"
 
 module TestReportKit
   class MarkdownExporter
@@ -106,12 +107,12 @@ module TestReportKit
       lines << ""
 
       shown.each do |t|
-        spec_path = t[:file].to_s.sub(/:\d+\z/, "").sub(%r{^\./}, "")
-        pr_related = pr_spec_paths.include?(spec_path)
+        path, line = split_file_line(t[:file])
+        pr_related = pr_spec_paths.include?(path)
         marker = pr_related ? "🔴 " : ""
         related_tag = pr_related ? " — in PR-related file" : ""
 
-        lines << "### #{marker}`#{t[:file]}`#{related_tag}"
+        lines << "### #{marker}#{md_link("`#{t[:file]}`", blob_url(path, line: line))}#{related_tag}"
         lines << "**#{t[:description]}**"
         exc = t[:exception]
         if exc
@@ -152,7 +153,8 @@ module TestReportKit
         lines << "|------|---------------|-----------|"
         pr[:files].each do |f|
           pct = f[:not_loaded] ? "not loaded" : (f[:coverage_pct] ? "#{f[:coverage_pct]}%" : "N/A")
-          lines << "| `#{f[:path]}` | #{pct} | #{f[:uncovered]} |"
+          file_cell = md_link("`#{f[:path]}`", diff_url(f[:path]))
+          lines << "| #{file_cell} | #{pct} | #{f[:uncovered]} |"
         end
       end
 
@@ -163,7 +165,9 @@ module TestReportKit
         lines << "|------|----------|--------|"
         pr[:related_slowest_tests].each do |t|
           desc = t[:description].to_s[0..80]
-          lines << "| #{desc} | #{t[:duration]}s | #{t[:status]} |"
+          path, line = split_file_line(t[:file])
+          test_cell = md_link(md_cell(desc), blob_url(path, line: line))
+          lines << "| #{test_cell} | #{t[:duration]}s | #{t[:status]} |"
         end
       end
 
@@ -223,6 +227,52 @@ module TestReportKit
 
     def sha
       ENV.fetch("TEST_REPORT_SHA", `git rev-parse --short HEAD 2>/dev/null`.strip)
+    end
+
+    def github_base
+      @github_base ||= @config.github_url.to_s.chomp("/") # tolerate a trailing slash
+    end
+
+    # Blob URL for a repo-relative path at the tested commit, optionally pinned
+    # to a line. Same shape as Generator#gh_link. Returns nil when links can't
+    # be built so callers degrade to bare text.
+    def blob_url(path, line: nil)
+      return nil if github_base.empty? || sha.to_s.empty?
+
+      url = "#{github_base}/blob/#{sha}/#{path}"
+      line ? "#{url}#L#{line}" : url
+    end
+
+    # Per-file anchor on the PR "Files changed" tab: `diff-` + SHA256(new path).
+    # Needs the PR number; without it, fall back to the blob view at the tested
+    # SHA. If the anchor ever fails to match (e.g. a renamed file), GitHub just
+    # lands on /pull/N/files rather than 404ing.
+    def diff_url(path)
+      return blob_url(path) if github_base.empty? || pr_number.nil?
+
+      "#{github_base}/pull/#{pr_number}/files#diff-#{Digest::SHA256.hexdigest(path)}"
+    end
+
+    def md_link(text, url)
+      url ? "[#{text}](#{url})" : text
+    end
+
+    # RSpec file_path keeps a "./" prefix in some sections (failures) and not in
+    # others (slowest) — strip it so the blob path resolves cleanly.
+    #   "./spec/foo_spec.rb:10" => ["spec/foo_spec.rb", "10"]
+    def split_file_line(ref)
+      raw = ref.to_s.sub(%r{\A\./}, "")
+      (m = raw.match(/\A(.+):(\d+)\z/)) ? [m[1], m[2]] : [raw, nil]
+    end
+
+    # Escape characters that would break a GitHub markdown table cell ("|") or a
+    # link's bracketed text ("[", "]").
+    def md_cell(text)
+      text.to_s.gsub(/[|\[\]]/) { |c| "\\#{c}" }
+    end
+
+    def pr_number
+      @pr_number ||= (@config.github_pr_number || ENV["TEST_REPORT_PR_NUMBER"]).to_s[/\d+/]
     end
   end
 end

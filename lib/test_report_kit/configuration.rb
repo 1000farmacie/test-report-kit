@@ -13,6 +13,7 @@ module TestReportKit
                   :factory_cascade_threshold,
                   :project_root,
                   :github_url,
+                  :github_pr_number,
                   :event_prof_event,
                   :fail_on_coverage,
                   :fail_on_diff_coverage,
@@ -30,6 +31,7 @@ module TestReportKit
       @factory_cascade_threshold = 10
       @project_root             = Dir.pwd
       @github_url               = nil
+      @github_pr_number         = nil
       @event_prof_event         = "factory.create"
       @fail_on_coverage         = false
       @fail_on_diff_coverage    = false

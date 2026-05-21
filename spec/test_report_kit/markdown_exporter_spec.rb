@@ -115,6 +115,91 @@ RSpec.describe TestReportKit::MarkdownExporter do
       expect(md).to include("Cart#optimize handles empty")
     end
 
+    context "with github_url and github_pr_number configured" do
+      let(:config) do
+        TestReportKit.configure do |c|
+          c.output_dir = tmpdir
+          c.project_name = "test_app"
+          c.github_url = "https://github.com/acme/widgets"
+          c.github_pr_number = 123
+        end
+        TestReportKit.configuration
+      end
+
+      before { allow(exporter).to receive(:sha).and_return("deadbee") }
+
+      it "links each section to GitHub", :aggregate_failures do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+
+        # Files changed -> per-file diff anchor on the PR "Files changed" tab.
+        diff_anchor = Digest::SHA256.hexdigest("app/services/cart.rb")
+        expect(md).to include("[`app/services/cart.rb`](https://github.com/acme/widgets/pull/123/files#diff-#{diff_anchor})")
+
+        # Slowest related test -> spec source at the exact line, on the tested SHA.
+        expect(md).to include("[Cart#optimize handles empty](https://github.com/acme/widgets/blob/deadbee/spec/services/cart_spec.rb#L10)")
+      end
+
+      context "with failing tests carrying a ./ prefix" do
+        let(:metrics) do
+          super().merge(failed_tests: [
+                          {
+                            description: "Cart#optimize handles empty cart",
+                            file: "./spec/services/cart_spec.rb:42",
+                            duration: 0.12, status: "failed", slow: false,
+                            exception: { class: "RSpec::Expectations::ExpectationNotMetError", message: "boom", backtrace: [] }
+                          }
+                        ])
+        end
+
+        it "links the failing-test header to the line, stripping the ./ prefix", :aggregate_failures do
+          exporter.export
+          md = File.read(File.join(tmpdir, "report.md"))
+
+          expect(md).to include("[`./spec/services/cart_spec.rb:42`](https://github.com/acme/widgets/blob/deadbee/spec/services/cart_spec.rb#L42)")
+          expect(md).not_to include("/blob/deadbee/./spec")
+        end
+      end
+    end
+
+    context "with github_url but no PR number" do
+      let(:config) do
+        TestReportKit.configure do |c|
+          c.output_dir = tmpdir
+          c.project_name = "test_app"
+          c.github_url = "https://github.com/acme/widgets/" # trailing slash on purpose
+        end
+        TestReportKit.configuration
+      end
+
+      before { allow(exporter).to receive(:sha).and_return("deadbee") }
+
+      it "falls back to a blob link for files changed, no double slash", :aggregate_failures do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+
+        expect(md).to include("[`app/services/cart.rb`](https://github.com/acme/widgets/blob/deadbee/app/services/cart.rb)")
+        expect(md).not_to include("/pull/")
+        expect(md).not_to include("widgets//blob")
+      end
+    end
+
+    context "when a test description contains table-breaking characters" do
+      let(:metrics) do
+        super().merge(pr_metrics: super()[:pr_metrics].merge(
+          related_slowest_tests: [
+            { description: "renders [admin] | when piped", file: "spec/services/cart_spec.rb:10", duration: 0.5, status: "passed", slow: false }
+          ]
+        ))
+      end
+
+      it "escapes | [ ] so the table and link stay intact" do
+        exporter.export
+        md = File.read(File.join(tmpdir, "report.md"))
+        expect(md).to include('renders \[admin\] \| when piped')
+      end
+    end
+
     it "includes uncovered changes (diff coverage code excerpts)" do
       exporter.export
       md = File.read(File.join(tmpdir, "report.md"))

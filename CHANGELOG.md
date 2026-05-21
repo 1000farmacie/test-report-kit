@@ -4,6 +4,27 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-21
+
+### Added
+- **Clickable code links in the markdown PR comment.** When `github_url` is
+  configured (already required for the HTML dashboard), the comment now links:
+  - each **"Files changed"** row to its diff on the PR "Files changed" tab
+    (`/pull/<n>/files#diff-<sha256(path)>`) — requires the new
+    `config.github_pr_number` (or `TEST_REPORT_PR_NUMBER` env); falls back to
+    the blob view of the file at the tested SHA when no PR number is available;
+  - each **"Slowest related tests"** row and each **"Failing Tests"** header to
+    its spec source at the exact line (`/blob/<sha>/<path>#L<line>`), the same
+    URL shape the HTML report already uses.
+
+  When `github_url` is unset the comment renders bare `` `path` `` text exactly
+  as before. Table cells now escape `|`/`[`/`]` so a pipe or bracket in a test
+  name can no longer break the table or a link.
+
+### Configuration
+- New `config.github_pr_number` (default `nil`); also read from the
+  `TEST_REPORT_PR_NUMBER` environment variable.
+
 ## [0.4.1] - 2026-05-18
 
 ### Changed

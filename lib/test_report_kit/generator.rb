@@ -240,7 +240,16 @@ module TestReportKit
 
     def embedded_markdown
       return "" unless @markdown_content
-      @markdown_content.gsub("</script>", "<\\/script>")
+
+      # Matching the exact lowercase "</script>" is not enough: an HTML parser also
+      # ends the element on "</SCRIPT>", "</script >", "</script/>" and "</script"
+      # followed by a tab or newline. report.md embeds uncovered source lines
+      # verbatim, so this is reachable from ordinary repository content. Case is
+      # preserved in the output so the copied markdown still reads as written.
+      #
+      # script_safe_json is not usable here -- this block is text/plain, so a
+      # \\u003c escape would appear literally in the markdown the user copies.
+      @markdown_content.gsub(%r{</script}i) { |m| "<\\#{m[1..]}" }
     end
 
     # JSON destined for a <script> block must not be able to close the element.

@@ -33,7 +33,17 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
   `cov-file-data` embeds the full source of every uncovered `app/` and `lib/`
   file, so this was reachable from ordinary repository content. All three blocks
   now escape `<` and `>` as `\u003c`/`\u003e`, which stays valid JSON and parses
-  back byte-identical. (`embedded_markdown` already defended against this.)
+  back byte-identical.
+
+- **Completed the same defence in the embedded markdown block.**
+  `embedded_markdown` neutralised only the exact lowercase `</script>`, but an
+  HTML parser also ends the element on `</SCRIPT>`, `</script >`, `</script/>`
+  and `</script` followed by a tab or newline — each confirmed to terminate it.
+  `report.md` embeds uncovered source lines verbatim, so this was reachable from
+  ordinary repository content, and a markdown body containing
+  `</SCRIPT><img src=x onerror=…>` produced a live element in the report. Now
+  matched case-insensitively without requiring the closing `>`, preserving the
+  original case so copied markdown still reads as written.
 
 - **Escaped the factory optimisation suggestions**
   (`_tab_factories.html.erb:104`), which rendered a message containing a factory

@@ -308,14 +308,28 @@ RSpec.describe TestReportKit::Generator do
     it "neutralises a script closer coming from file contents" do
       json = generator.send(:script_safe_json, { "app/evil.rb" => { lines: [payload] } })
 
-      expect(json).not_to include("</script>")
+      expect(json).not_to match(%r{</script}i)
       expect(JSON.parse(json).dig("app/evil.rb", "lines", 0)).to eq(payload)
     end
 
     it "routes every embedded JSON block through the escaper" do
+      # Matched case-insensitively and without requiring the closing `>`: a parser
+      # also ends the element on `</SCRIPT>`, `</script >` and `</script/>`, so an
+      # exact-string assertion would pass against a partial defence.
       aggregate_failures do
         %i[json_data coverage_file_data_json coverage_config_json].each do |helper|
-          expect(generator.send(helper)).not_to include("</script>"), "#{helper} can close its script element"
+          expect(generator.send(helper)).not_to match(%r{</script}i), "#{helper} can close its script element"
+        end
+      end
+    end
+
+    it "neutralises every script-closer variant in the embedded markdown" do
+      variants = ["a</SCRIPT>b", "a</script >b", "a</script/>b", "a</script\tb", "a</script\nb", "a</script>b"]
+
+      aggregate_failures do
+        variants.each do |variant|
+          generator.instance_variable_set(:@markdown_content, variant)
+          expect(generator.send(:embedded_markdown)).not_to match(%r{</script}i), "#{variant.inspect} closes the element"
         end
       end
     end

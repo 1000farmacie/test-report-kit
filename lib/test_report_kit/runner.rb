@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "json"
+require "open3"
 require_relative "data_loader"
 require_relative "diff_coverage"
 require_relative "metrics_calculator"
@@ -174,10 +175,28 @@ module TestReportKit
     end
 
     def compute_git_churn
-      days = @config.churn_days
-      cmd = "git log --since='#{days} days' --name-only --pretty=format:''"
-      output = `#{cmd} 2>/dev/null`
-      return unless $?.success?
+      # Coerced, not interpolated: `churn_days` is config-supplied and previously
+      # reached a shell verbatim. Integer() rejects anything non-numeric outright,
+      # and argv form keeps the value away from a shell regardless.
+      #
+      # The rescue is scoped to the coercion alone — wrapping the whole method would
+      # report an unrelated TypeError from File.join/File.write as a bad churn_days.
+      days = begin
+        raw = @config.churn_days
+        # Base 10 is explicit for strings so a zero-padded "08" parses as 8 rather
+        # than raising as invalid octal. The base cannot be passed for non-strings,
+        # which is why this branches rather than always calling Integer(raw, 10).
+        raw.is_a?(String) ? Integer(raw, 10) : Integer(raw)
+      rescue ArgumentError, TypeError
+        # Churn is a nice-to-have panel, not a gate, so a bad value skips it
+        # rather than aborting the run (see "graceful degradation").
+        warn "TestReportKit: churn_days must be an integer, got #{@config.churn_days.inspect} — skipping churn"
+        return
+      end
+      output, _stderr, status = Open3.capture3(
+        "git", "log", "--since=#{days} days", "--name-only", "--pretty=format:"
+      )
+      return unless status.success?
 
       churn = Hash.new(0)
       output.each_line do |line|
@@ -189,6 +208,8 @@ module TestReportKit
       churn_path = File.join(@config.output_dir, "git_churn.json")
       FileUtils.mkdir_p(@config.output_dir)
       File.write(churn_path, JSON.pretty_generate({ days: days, files: churn }))
+    rescue Errno::ENOENT
+      warn "TestReportKit: git not found — skipping churn"
     end
 
     def generate_report

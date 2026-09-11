@@ -250,4 +250,62 @@ RSpec.describe TestReportKit::Runner do
       expect(content).not_to include("minimum_coverage ")
     end
   end
+
+  describe "#compute_git_churn argument safety" do
+    let(:runner) { described_class.new(config, mode: :full) }
+    let(:churn_path) { File.join(config.output_dir, "git_churn.json") }
+    let(:ok_status) { instance_double(Process::Status, success?: true) }
+
+    it "passes churn_days as a coerced integer in argv form" do
+      expect(Open3).to receive(:capture3)
+        .with("git", "log", "--since=90 days", "--name-only", "--pretty=format:")
+        .and_return(["app/models/order.rb\napp/models/order.rb\n", "", ok_status])
+
+      runner.send(:compute_git_churn)
+
+      expect(JSON.parse(File.read(churn_path))).to eq(
+        "days" => 90, "files" => { "app/models/order.rb" => 2 }
+      )
+    end
+
+    it "coerces a numeric string rather than interpolating it" do
+      config.churn_days = "30"
+      expect(Open3).to receive(:capture3)
+        .with("git", "log", "--since=30 days", "--name-only", "--pretty=format:")
+        .and_return(["", "", ok_status])
+
+      runner.send(:compute_git_churn)
+    end
+
+    it "parses a zero-padded string as base 10 rather than rejecting it as octal" do
+      config.churn_days = "08"
+      expect(Open3).to receive(:capture3)
+        .with("git", "log", "--since=8 days", "--name-only", "--pretty=format:")
+        .and_return(["", "", ok_status])
+
+      runner.send(:compute_git_churn)
+    end
+
+    it "skips churn without spawning a process when churn_days is not numeric" do
+      # The payload breaks out of the single quotes the old command used
+      # (`--since='#{days} days'`); a plain `90 days; ...` was inert there.
+      # Verified: against the previous implementation this spec created the marker.
+      marker = File.join(tmpdir, "pwned")
+      config.churn_days = "90' ; touch #{marker} ; echo '"
+      expect(Open3).not_to receive(:capture3)
+
+      expect { runner.send(:compute_git_churn) }
+        .to output(/churn_days must be an integer/).to_stderr
+
+      expect(File).not_to exist(marker)
+      expect(File).not_to exist(churn_path)
+    end
+
+    it "does not abort the pipeline when git is missing" do
+      allow(Open3).to receive(:capture3).and_raise(Errno::ENOENT)
+
+      expect { runner.send(:compute_git_churn) }
+        .to output(/git not found/).to_stderr
+    end
+  end
 end

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "open3"
 require "set"
 
 module TestReportKit
@@ -16,6 +17,19 @@ module TestReportKit
     HUNK_HEADER_RE = /^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/
     DIFF_FILE_RE   = /^diff --git a\/.+ b\/(.+)$/
     RUBY_APP_RE    = /\A(?:app|lib)\/.+\.rb\z/
+
+    # `diff_base_branch` reaches git as an argument, so it is validated before use.
+    # Git refname rules permit `;`, `|`, `&` and `$()` — and `${IFS}` sidesteps the
+    # ban on spaces — so a base branch taken from ENV, YAML or a CI variable rather
+    # than a literal is untrusted input.
+    #
+    # Argv form is the actual defence: nothing here reaches a shell. This allowlist
+    # is the second layer, and also keeps git from reading a ref as an option, hence
+    # the restricted first character (`--upload-pack=...` is rejected).
+    #
+    # Unicode letters are deliberately allowed — `développement` and `主分支` are
+    # valid branch names, and rejecting them would silently disable the gate.
+    BASE_REF_RE = %r{\A[\p{L}\p{N}_][\p{L}\p{N}._/+-]*\z}
 
     Result = Struct.new(
       :base_branch, :base_sha, :head_sha,
@@ -195,30 +209,59 @@ module TestReportKit
       base = resolve_base_ref
       return nil unless base
 
-      cmd = "git diff #{base}...HEAD --unified=0 --no-color --diff-filter=ACMR --find-renames"
-      result = `#{cmd} 2>/dev/null`
-      $?.success? ? result : nil
+      git_capture("diff", "#{base}...HEAD", "--unified=0", "--no-color",
+                  "--diff-filter=ACMR", "--find-renames")
     end
 
+    # Memoised so a run resolves the base ref once instead of per call site, and so
+    # a rejected ref warns once rather than on every caller.
     def resolve_base_ref
-      base = @config.diff_base_branch
-      ["git rev-parse --verify #{base} 2>/dev/null", "git rev-parse --verify origin/#{base} 2>/dev/null"].each do |cmd|
-        result = `#{cmd}`.strip
-        return result[0..11] if $?.success? && !result.empty?
+      return @resolved_base_ref if defined?(@resolved_base_ref)
+
+      @resolved_base_ref = compute_base_ref
+    end
+
+    def compute_base_ref
+      # dup before force_encoding: `to_s` returns the config's own String, and the
+      # tag must not be mutated in place. A ref arriving as ASCII-8BIT with a high
+      # byte would otherwise raise Encoding::CompatibilityError against the Unicode
+      # character class, and `call` is unrescued — one bad byte would abort the
+      # whole report rather than just skipping diff coverage.
+      base = @config.diff_base_branch.to_s.dup.force_encoding("UTF-8")
+      unless base.valid_encoding? && base.match?(BASE_REF_RE)
+        # Never fail silently here. A rejected ref disables diff coverage, and the
+        # dashboard renders that identically to "this branch has no diff" — so
+        # without this line a typo'd or exotic branch name looks like a passing gate.
+        warn "TestReportKit: diff_base_branch #{base.inspect} is not a usable branch name — skipping diff coverage"
+        return nil
       end
-      nil
-    rescue Errno::ENOENT
+
+      [base, "origin/#{base}"].each do |ref|
+        result = git_capture("rev-parse", "--verify", ref).to_s.strip
+        return result[0..11] unless result.empty?
+      end
       nil
     end
 
     def git_merge_base
       base = resolve_base_ref
       return "" unless base
-      `git merge-base #{base} HEAD 2>/dev/null`.strip[0..6]
+
+      git_capture("merge-base", base, "HEAD").to_s.strip[0..6].to_s
     end
 
     def git_head_sha
-      `git rev-parse --short HEAD 2>/dev/null`.strip
+      git_capture("rev-parse", "--short", "HEAD").to_s.strip
+    end
+
+    # Runs git in argv form so arguments are passed to execve directly and are
+    # never parsed by a shell. Returns nil on non-zero exit or a missing binary,
+    # matching the previous backtick behaviour (callers treat nil as "no git").
+    def git_capture(*args)
+      stdout, _stderr, status = Open3.capture3("git", *args)
+      status.success? ? stdout : nil
+    rescue Errno::ENOENT
+      nil
     end
   end
 end

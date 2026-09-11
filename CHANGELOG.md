@@ -4,6 +4,36 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-11
+
+### Security
+- **Fixed shell injection in the git invocations** (`diff_coverage.rb`,
+  `runner.rb`). `config.diff_base_branch` and `config.churn_days` were
+  interpolated into backtick strings, so both reached `/bin/sh` verbatim. Git
+  refname rules permit `;`, `|`, `&` and `$()` — and `${IFS}` sidesteps the ban
+  on spaces — so any deployment that sourced either value from ENV, YAML or a CI
+  variable rather than a literal could execute arbitrary commands on the runner.
+  `churn_days` needed a quote-breaking payload (`90' ; … ; echo '`) because that
+  command single-quoted it; `diff_base_branch` was unquoted and took any payload.
+
+  Both git calls that interpolate a value now use argv form via `Open3.capture3`,
+  which passes arguments straight to `execve` and never invokes a shell. (The
+  remaining backticks in `generator.rb`, `summary_exporter.rb` and
+  `markdown_exporter.rb` run fixed command strings with nothing interpolated.)
+  As a second layer, `diff_base_branch` is validated against
+  `/\A[\p{L}\p{N}_][\p{L}\p{N}._\/+-]*\z/` — the leading character is
+  restricted so a ref can never be read by git as an option such as
+  `--upload-pack`, while Unicode letters stay valid — and `churn_days` is coerced
+  with `Integer()`. A rejected base branch now warns instead of silently
+  disabling the diff-coverage gate.
+
+  Projects that set neither option, or set them to literal values, were not
+  affected.
+
+### Changed
+- A malformed `churn_days` now warns and skips the churn panel instead of
+  aborting the run, and a missing `git` binary is handled the same way.
+
 ## [0.4.2] - 2026-05-21
 
 ### Added

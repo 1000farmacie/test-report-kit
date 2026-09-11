@@ -194,4 +194,40 @@ RSpec.describe TestReportKit::Generator do
       expect(html).to include("No factory profiling data available")
     end
   end
+
+  describe "template link safety" do
+    # The four GitHub links in _tab_failures and _tab_performance are hand-written
+    # rather than built by `gh_link` (which escapes the whole URL), and interpolated
+    # `sha` and `test_file` raw. `test_file` comes from the RSpec JSON, so a spec
+    # filename containing a double quote -- which any contributor can create --
+    # closed the attribute and injected an event handler into the report.
+    #
+    # A static guard rather than a render assertion on purpose: the failure mode is
+    # someone hand-writing a fifth href, and that must fail here regardless of
+    # whether the surrounding block happens to render for a given fixture.
+    let(:template_dir) { File.expand_path("../../lib/test_report_kit/templates", __dir__) }
+
+    let(:offenders) do
+      Dir.glob(File.join(template_dir, "*.erb")).flat_map do |path|
+        File.readlines(path).each_with_index.flat_map do |line, idx|
+          line.scan(/(?:href|src)="[^"]*"/).flat_map do |attr|
+            attr.scan(/<%=(.+?)%>/)
+                .map(&:first)
+                .reject { |expr| expr.strip.start_with?("h(") }
+                .map { |expr| "#{File.basename(path)}:#{idx + 1}: #{expr.strip}" }
+          end
+        end
+      end
+    end
+
+    it "escapes every interpolation inside an href or src attribute" do
+      expect(offenders).to be_empty
+    end
+
+    it "escapes a double quote in a spec path so it cannot close the attribute" do
+      escaped = generator.send(:h, 'spec/x" onmouseover="alert(1)')
+      expect(escaped).not_to include('"')
+      expect(escaped).to include("&quot;")
+    end
+  end
 end

@@ -111,7 +111,7 @@
                   <% source_lines.each do |sl| -%>
                   <div class="cov-line cov-line-none">
                     <% if @config.github_url -%>
-                    <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= sl[:line] %>" target="_blank" rel="noopener" class="cov-line-num"><%= sl[:line] %></a>
+                    <a href="<%= h(@config.github_url) %>/blob/<%= h(sha) %>/<%= h(test_file) %>#L<%= h(sl[:line]) %>" target="_blank" rel="noopener" class="cov-line-num"><%= sl[:line] %></a>
                     <% else -%>
                     <div class="cov-line-num"><%= sl[:line] %></div>
                     <% end -%>
@@ -122,7 +122,7 @@
               </div>
               <% if @config.github_url -%>
               <div style="flex-shrink: 0; padding-top: 24px;">
-                <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= test_line %>" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                <a href="<%= h(@config.github_url) %>/blob/<%= h(sha) %>/<%= h(test_file) %>#L<%= h(test_line) %>" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
                   <%= GH_ICON_SVG %>
                   View on GitHub
                 </a>

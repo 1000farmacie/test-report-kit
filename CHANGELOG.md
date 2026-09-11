@@ -4,6 +4,23 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-11
+
+### Security
+- **Escaped `sha` and the spec path in the report's GitHub links.** The four
+  hand-written links in `_tab_failures.html.erb` and `_tab_performance.html.erb`
+  interpolated `sha` and `test_file` into an `href` without escaping, unlike
+  `gh_link`, which escapes the whole URL. `test_file` comes straight from the
+  RSpec JSON, so a spec filename containing a double quote — something any
+  contributor can create in a pull request — closed the attribute and injected
+  an event handler into the generated dashboard, which CI then publishes.
+  `sha` was injectable the same way via `TEST_REPORT_SHA`, though truncation to
+  seven characters limited it to a malformed tag.
+
+  All four links now escape every interpolated component. A spec walks the
+  templates and fails on any unescaped interpolation inside an `href` or `src`,
+  so a newly hand-written link cannot reintroduce this.
+
 ## [0.4.3] - 2026-09-11
 
 ### Security

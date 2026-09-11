@@ -277,6 +277,15 @@ RSpec.describe TestReportKit::Runner do
       runner.send(:compute_git_churn)
     end
 
+    it "parses a zero-padded string as base 10 rather than rejecting it as octal" do
+      config.churn_days = "08"
+      expect(Open3).to receive(:capture3)
+        .with("git", "log", "--since=8 days", "--name-only", "--pretty=format:")
+        .and_return(["", "", ok_status])
+
+      runner.send(:compute_git_churn)
+    end
+
     it "skips churn without spawning a process when churn_days is not numeric" do
       # The payload breaks out of the single quotes the old command used
       # (`--since='#{days} days'`); a plain `90 days; ...` was inert there.

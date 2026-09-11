@@ -182,7 +182,11 @@ module TestReportKit
       # The rescue is scoped to the coercion alone — wrapping the whole method would
       # report an unrelated TypeError from File.join/File.write as a bad churn_days.
       days = begin
-        Integer(@config.churn_days)
+        raw = @config.churn_days
+        # Base 10 is explicit for strings so a zero-padded "08" parses as 8 rather
+        # than raising as invalid octal. The base cannot be passed for non-strings,
+        # which is why this branches rather than always calling Integer(raw, 10).
+        raw.is_a?(String) ? Integer(raw, 10) : Integer(raw)
       rescue ArgumentError, TypeError
         # Churn is a nice-to-have panel, not a gate, so a bad value skips it
         # rather than aborting the run (see "graceful degradation").

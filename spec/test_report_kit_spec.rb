@@ -2,7 +2,7 @@
 
 RSpec.describe TestReportKit do
   it "has a version number" do
-    expect(TestReportKit::VERSION).to eq("0.4.3")
+    expect(TestReportKit::VERSION).to eq("0.4.4")
   end
 
   describe ".configuration" do

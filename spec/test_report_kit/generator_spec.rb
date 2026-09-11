@@ -194,4 +194,144 @@ RSpec.describe TestReportKit::Generator do
       expect(html).to include("No factory profiling data available")
     end
   end
+
+  describe "template link safety" do
+    # The hand-written GitHub links interpolated `sha` and `test_file` into an href
+    # without escaping, unlike `gh_link`, which escapes the whole URL. `test_file`
+    # comes from the RSpec JSON, so a spec filename containing a double quote --
+    # which any contributor can create -- closed the attribute and injected an
+    # event handler into the report.
+    #
+    # This is a ratchet, not a grammar: every interpolation that currently sits in
+    # an HTML attribute without h() was read and confirmed to yield a fixed palette
+    # token (`var(--red)`), a boolean, or a number -- never attacker text. Anything
+    # NEW must be looked at by a human and added here deliberately. A static sweep
+    # rather than a render assertion because the failure mode is someone writing
+    # another link, which must fail regardless of what a fixture happens to render.
+    KNOWN_SAFE_ATTRIBUTE_EXPRESSIONS = [
+      "bucket[:color]",
+      "bucket[:count] > 0 ? '2px' : '0'",
+      "bucket[:pct]",
+      "coverage_color(diff_cov.diff_coverage_pct)",
+      "coverage_color(f.diff_coverage_pct)",
+      "coverage_color(f[:coverage_pct])",
+      "coverage_color(overall_coverage[:coverage_pct])",
+      "diff_cov && diff_cov.passed == false ? 'var(--red)' : 'var(--green)'",
+      "f.diff_coverage_pct || 0",
+      "f.uncovered_lines.any? ? 'var(--red)' : 'var(--text-muted)'",
+      "f.uncovered_lines.size > 10 ? ' font-weight: 700;' : ''",
+      "f[:branch_coverage_pct] ? coverage_color(f[:branch_coverage_pct]) : 'var(--text-muted)'",
+      "f[:coverage_pct]",
+      "f[:hook_pct] >= 70 ? 'var(--red)' : 'var(--yellow)'",
+      "f[:hook_pct] >= 70 ? 'var(--red-dim)' : 'var(--yellow-dim)'",
+      "in_pr?(f[:path])",
+      "in_pr_attr",
+      "in_pr_spec?(ep_parts[0])",
+      "in_pr_spec?(fp)",
+      "in_pr_spec?(loc_p[0])",
+      "in_pr_spec?(loc_parts[0])",
+      "overall_coverage ? coverage_color(overall_coverage[:coverage_pct]) : 'var(--accent)'",
+      "risk_bg(f[:risk_score])",
+      "risk_color(f[:risk_score])",
+      "s[:cascade_ratio] >= 5 ? 'var(--red)' : s[:cascade_ratio] >= 3 ? 'var(--yellow)' : 'var(--green)'",
+      "s[:cascade_ratio] >= 5 ? 'var(--red-dim)' : s[:cascade_ratio] >= 3 ? 'var(--yellow-dim)' : 'var(--green-dim)'",
+      "s[:count_pct]",
+      "s[:dep_per_call] >= 3 ? 'var(--red)' : s[:dep_per_call] >= 1 ? 'var(--yellow)' : 'var(--green)'",
+      "s[:time_pct]",
+      "s[:total_count] >= 1000 ? 'var(--red)' : s[:total_count] >= 500 ? 'var(--orange)' : 'var(--text-secondary)'",
+      "severity_color(s[:severity])",
+      "t[:slow] ? 'var(--red)' : 'var(--yellow)'",
+      "t[:status] == 'passed' ? 'pass' : 'fail'",
+    ].freeze
+
+    let(:template_dir) { File.expand_path("../../lib/test_report_kit/templates", __dir__) }
+
+    # Any attribute, either quote style -- not just double-quoted href/src. The
+    # narrow first version of this sweep missed the JS link builder entirely.
+    let(:attribute_interpolations) do
+      Dir.glob(File.join(template_dir, "*.erb")).sort.flat_map do |path|
+        File.readlines(path).each_with_index.flat_map do |line, idx|
+          line.scan(/[\w:-]+=(?:"[^"]*"|'[^']*')/).flat_map do |attr|
+            attr.scan(/<%=(.+?)%>/)
+                .map { |m| m.first.strip }
+                .reject { |expr| expr.start_with?("h(") }
+                .map { |expr| { where: "#{File.basename(path)}:#{idx + 1}", expr: expr } }
+          end
+        end
+      end
+    end
+
+    it "has no unreviewed interpolation inside an HTML attribute" do
+      unreviewed = attribute_interpolations
+                   .reject { |i| KNOWN_SAFE_ATTRIBUTE_EXPRESSIONS.include?(i[:expr]) }
+                   .map { |i| "#{i[:where]}: #{i[:expr]}" }
+
+      expect(unreviewed).to be_empty
+    end
+
+    it "escapes a double quote in a spec path so it cannot close the attribute" do
+      escaped = generator.send(:h, 'spec/x" onmouseover="alert(1)')
+      expect(escaped).not_to include('"')
+      expect(escaped).to include("&quot;")
+    end
+  end
+
+  describe "coverage viewer JS safety" do
+    # The viewer builds the same GitHub link client-side and assigns it via
+    # innerHTML. `path` is a repository file path and `covConfig.sha` comes from
+    # TEST_REPORT_SHA, so both need escHtml() exactly as the server-rendered links
+    # need h(). Neither the attribute ratchet nor a render assertion covers this:
+    # it is JS string concatenation, not an ERB attribute.
+    let(:dashboard_js) { File.read(File.expand_path("../../lib/test_report_kit/templates/dashboard.html.erb", __dir__)) }
+    let(:link_line) { dashboard_js.lines.find { |l| l.include?("cov-line-num") && l.include?("href") } }
+
+    it "escapes every interpolated value in the client-side link" do
+      expect(link_line).not_to be_nil
+
+      aggregate_failures do
+        expect(link_line).to include("escHtml(covConfig.github_url)")
+        expect(link_line).to include("escHtml(covConfig.sha)")
+        expect(link_line).to include("escHtml(path)")
+        expect(link_line).not_to match(/\+\s*covConfig\.sha\s*\+/)
+        expect(link_line).not_to match(/\+\s*path\s*\+/)
+      end
+    end
+  end
+
+  describe "embedded JSON safety" do
+    # `to_json` escapes neither `<` nor `/`, so any string reaching a JSON block
+    # could emit a literal `</script>` and turn the rest of the document into live
+    # markup -- no quote character needed. coverage_file_data_json embeds the full
+    # source of every uncovered file, i.e. arbitrary repository content.
+    let(:payload) { "</script><img src=x onerror=alert(1)>" }
+
+    it "neutralises a script closer coming from file contents" do
+      json = generator.send(:script_safe_json, { "app/evil.rb" => { lines: [payload] } })
+
+      expect(json).not_to match(%r{</script}i)
+      expect(JSON.parse(json).dig("app/evil.rb", "lines", 0)).to eq(payload)
+    end
+
+    it "routes every embedded JSON block through the escaper" do
+      # Matched case-insensitively and without requiring the closing `>`: a parser
+      # also ends the element on `</SCRIPT>`, `</script >` and `</script/>`, so an
+      # exact-string assertion would pass against a partial defence.
+      aggregate_failures do
+        %i[json_data coverage_file_data_json coverage_config_json].each do |helper|
+          expect(generator.send(helper)).not_to match(%r{</script}i), "#{helper} can close its script element"
+        end
+      end
+    end
+
+    it "neutralises every script-closer variant in the embedded markdown" do
+      variants = ["a</SCRIPT>b", "a</script >b", "a</script/>b", "a</script\tb", "a</script\nb", "a</script>b"]
+
+      aggregate_failures do
+        variants.each do |variant|
+          generator.instance_variable_set(:@markdown_content, variant)
+          expect(generator.send(:embedded_markdown)).not_to match(%r{</script}i), "#{variant.inspect} closes the element"
+        end
+      end
+    end
+  end
 end

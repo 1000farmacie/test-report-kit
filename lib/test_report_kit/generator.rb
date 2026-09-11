@@ -240,7 +240,29 @@ module TestReportKit
 
     def embedded_markdown
       return "" unless @markdown_content
-      @markdown_content.gsub("</script>", "<\\/script>")
+
+      # Matching the exact lowercase "</script>" is not enough: an HTML parser also
+      # ends the element on "</SCRIPT>", "</script >", "</script/>" and "</script"
+      # followed by a tab or newline. report.md embeds uncovered source lines
+      # verbatim, so this is reachable from ordinary repository content. Case is
+      # preserved in the output so the copied markdown still reads as written.
+      #
+      # script_safe_json is not usable here -- this block is text/plain, so a
+      # \\u003c escape would appear literally in the markdown the user copies.
+      @markdown_content.gsub(%r{</script}i) { |m| "<\\#{m[1..]}" }
+    end
+
+    # JSON destined for a <script> block must not be able to close the element.
+    # `to_json` leaves `<` and `/` untouched, so any string that reaches one of
+    # these blocks can emit a literal `</script>` and turn the rest of the document
+    # into live markup — no quote character required. That matters most for
+    # `coverage_file_data_json`, which embeds the full source of every uncovered
+    # file, i.e. arbitrary repository content.
+    #
+    # Escaping `<` and `>` as \\u003c / \\u003e keeps the payload valid JSON that
+    # JSON.parse returns byte-identical, so no consumer needs to change.
+    def script_safe_json(value)
+      value.to_json.gsub("<", '\\u003c').gsub(">", '\\u003e')
     end
 
     def format_duration_val(seconds)
@@ -301,12 +323,12 @@ module TestReportKit
     end
 
     def json_data
-      {
+      script_safe_json({
         diff_coverage: @diff_coverage&.to_h,
         file_coverage: file_coverage,
         factory_health: factory_health,
         insights: insights
-      }.to_json
+      })
     end
 
     def coverage_file_data_json
@@ -328,11 +350,11 @@ module TestReportKit
         }
       end
 
-      result.to_json
+      script_safe_json(result)
     end
 
     def coverage_config_json
-      { github_url: @config.github_url, sha: sha }.to_json
+      script_safe_json({ github_url: @config.github_url, sha: sha })
     end
 
     def all_passing?

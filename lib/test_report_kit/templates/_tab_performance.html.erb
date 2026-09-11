@@ -83,7 +83,7 @@
         <td style="color: var(--text-primary); max-width: 400px;"><%= h(t[:description]) %></td>
         <td><span class="file-path"><%= file_link(test_file, line: test_line) %><%= test_line ? ":#{test_line}" : "" %></span></td>
         <td><span class="num" style="color: <%= t[:slow] ? 'var(--red)' : 'var(--yellow)' %>; font-weight: 700;"><%= t[:duration] %>s</span></td>
-        <td><span class="badge badge-<%= t[:status] == 'passed' ? 'pass' : 'fail' %>"><%= t[:status] == 'passed' ? 'pass' : t[:status] %></span></td>
+        <td><span class="badge badge-<%= t[:status] == 'passed' ? 'pass' : 'fail' %>"><%= t[:status] == 'passed' ? 'pass' : h(t[:status]) %></span></td>
       </tr>
       <% source_lines = build_test_source(test_file, test_line) -%>
       <% if source_lines -%>
@@ -111,7 +111,7 @@
                   <% source_lines.each do |sl| -%>
                   <div class="cov-line cov-line-none">
                     <% if @config.github_url -%>
-                    <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= sl[:line] %>" target="_blank" rel="noopener" class="cov-line-num"><%= sl[:line] %></a>
+                    <a href="<%= h(@config.github_url) %>/blob/<%= h(sha) %>/<%= h(test_file) %>#L<%= h(sl[:line]) %>" target="_blank" rel="noopener" class="cov-line-num"><%= sl[:line] %></a>
                     <% else -%>
                     <div class="cov-line-num"><%= sl[:line] %></div>
                     <% end -%>
@@ -122,7 +122,7 @@
               </div>
               <% if @config.github_url -%>
               <div style="flex-shrink: 0; padding-top: 24px;">
-                <a href="<%= h(@config.github_url) %>/blob/<%= sha %>/<%= test_file %>#L<%= test_line %>" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                <a href="<%= h(@config.github_url) %>/blob/<%= h(sha) %>/<%= h(test_file) %>#L<%= h(test_line) %>" target="_blank" rel="noopener" style="font-size: 11px; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
                   <%= GH_ICON_SVG %>
                   View on GitHub
                 </a>
@@ -169,7 +169,7 @@
       <% loc_parts = suite["location"].to_s.sub('./', '').split(':') -%>
       <tr data-in-pr="<%= in_pr_spec?(loc_parts[0]) %>">
         <td><span class="file-path"><%= file_link(loc_parts[0], line: loc_parts[1]&.to_i) %></span></td>
-        <td><span class="num"><%= suite["total_time"] %></span></td>
+        <td><span class="num"><%= h(suite["total_time"]) %></span></td>
         <td>
           <div class="time-bar">
             <div class="time-bar-before" style="width: <%= suite["before_pct"] || 0 %>%;"></div>
@@ -193,7 +193,7 @@
   <div class="table-header">
     <div class="table-title">Event Profiling (<%= h(event_prof_data["event"]) %>)</div>
     <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">
-      <%= event_prof_data["total_events"] %> events &middot; <%= event_prof_data["total_time"] %> of <%= event_prof_data["total_run_time"] %> (<%= event_prof_data["total_percentage"] %>%)
+      <%= h(event_prof_data["total_events"]) %> events &middot; <%= h(event_prof_data["total_time"]) %> of <%= h(event_prof_data["total_run_time"]) %> (<%= h(event_prof_data["total_percentage"]) %>%)
     </div>
   </div>
   <table>

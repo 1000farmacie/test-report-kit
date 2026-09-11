@@ -4,6 +4,63 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-11
+
+### Security
+- **Escaped `sha` and the spec path in the report's GitHub links.** The four
+  hand-written links in `_tab_failures.html.erb` and `_tab_performance.html.erb`
+  interpolated `sha` and `test_file` into an `href` without escaping, unlike
+  `gh_link`, which escapes the whole URL. `test_file` comes straight from the
+  RSpec JSON, so a spec filename containing a double quote — something any
+  contributor can create in a pull request — closed the attribute and injected
+  an event handler into the generated dashboard, which CI then publishes.
+  `sha` was injectable the same way via `TEST_REPORT_SHA`, though truncation to
+  seven characters limited it to a malformed tag.
+
+  All four links now escape every interpolated component.
+
+- **Escaped the same values in the client-side coverage viewer.**
+  `buildViewer` in `dashboard.html.erb` rebuilds that link in JavaScript and
+  assigns it through `innerHTML`, escaping only `github_url` — not the file path
+  or `sha`. Opening a poisoned file in the viewer put a live event handler in the
+  DOM. The comment claiming all text content was escaped was wrong, and has been
+  corrected along with the code.
+
+- **Stopped the embedded JSON blocks from closing their own `<script>` element.**
+  `to_json` escapes neither `<` nor `/`, so any string reaching `report-data`,
+  `cov-file-data` or `cov-config` could emit a literal `</script>` and turn the
+  remainder of the document into live markup — with no quote character involved.
+  `cov-file-data` embeds the full source of every uncovered `app/` and `lib/`
+  file, so this was reachable from ordinary repository content. All three blocks
+  now escape `<` and `>` as `\u003c`/`\u003e`, which stays valid JSON and parses
+  back byte-identical.
+
+- **Completed the same defence in the embedded markdown block.**
+  `embedded_markdown` neutralised only the exact lowercase `</script>`, but an
+  HTML parser also ends the element on `</SCRIPT>`, `</script >`, `</script/>`
+  and `</script` followed by a tab or newline — each confirmed to terminate it.
+  `report.md` embeds uncovered source lines verbatim, so this was reachable from
+  ordinary repository content, and a markdown body containing
+  `</SCRIPT><img src=x onerror=…>` produced a live element in the report. Now
+  matched case-insensitively without requiring the closing `>`, preserving the
+  original case so copied markdown still reads as written.
+
+- **Escaped the remaining strings read from profiler JSON** — the RSpec status
+  fallback, and the `total_time` / `total_run_time` / `total_events` /
+  `total_percentage` fields from FactoryProf, EventProf and RSpecDissect. These
+  were not reachable the way a spec filename is, so this is defence in depth
+  rather than a fix; the invariant is now simply that no raw string from a JSON
+  artifact reaches the document.
+
+- **Escaped the factory optimisation suggestions**
+  (`_tab_factories.html.erb:104`), which rendered a message containing a factory
+  name as raw HTML.
+
+  Three specs lock these: a ratchet over every interpolation inside any HTML
+  attribute, a check that each JSON helper cannot emit `</script>`, and a guard
+  on the client-side link builder. Each was confirmed to fail when its fix is
+  reverted.
+
 ## [0.4.3] - 2026-09-11
 
 ### Security

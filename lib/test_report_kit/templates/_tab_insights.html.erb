@@ -90,7 +90,7 @@
       <% loc_p = f[:location].to_s.sub('./', '').split(':') -%>
       <tr data-in-pr="<%= in_pr_spec?(loc_p[0]) %>">
         <td><span class="file-path"><%= file_link(loc_p[0], line: loc_p[1]&.to_i) %></span></td>
-        <td><span class="num"><%= f[:total_time] %></span></td>
+        <td><span class="num"><%= h(f[:total_time]) %></span></td>
         <td><span class="num" style="color: var(--red);"><%= f[:hook_time] %></span></td>
         <td><span class="num" style="color: var(--green);"><%= f[:example_time] %></span></td>
         <td><span class="risk-score" style="background: <%= f[:hook_pct] >= 70 ? 'var(--red-dim)' : 'var(--yellow-dim)' %>; color: <%= f[:hook_pct] >= 70 ? 'var(--red)' : 'var(--yellow)' %>;"><%= f[:hook_pct] %>%</span></td>

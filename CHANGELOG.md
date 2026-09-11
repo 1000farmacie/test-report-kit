@@ -45,6 +45,13 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
   matched case-insensitively without requiring the closing `>`, preserving the
   original case so copied markdown still reads as written.
 
+- **Escaped the remaining strings read from profiler JSON** — the RSpec status
+  fallback, and the `total_time` / `total_run_time` / `total_events` /
+  `total_percentage` fields from FactoryProf, EventProf and RSpecDissect. These
+  were not reachable the way a spec filename is, so this is defence in depth
+  rather than a fix; the invariant is now simply that no raw string from a JSON
+  artifact reaches the document.
+
 - **Escaped the factory optimisation suggestions**
   (`_tab_factories.html.erb:104`), which rendered a message containing a factory
   name as raw HTML.

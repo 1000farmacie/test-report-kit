@@ -5,7 +5,7 @@
     <div class="table-title">Factory Usage Ranking</div>
     <div style="display: flex; align-items: center; gap: 12px;">
       <span style="font-size: 11px; color: var(--text-muted);">click a factory to view details</span>
-      <span style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);"><%= format_number(factory_health[:total_count]) %> total creates &middot; <%= factory_health[:total_time] %></span>
+      <span style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);"><%= format_number(factory_health[:total_count]) %> total creates &middot; <%= h(factory_health[:total_time]) %></span>
     </div>
   </div>
   <table>
@@ -25,7 +25,7 @@
         <td><span class="num" style="color: <%= s[:total_count] >= 1000 ? 'var(--red)' : s[:total_count] >= 500 ? 'var(--orange)' : 'var(--text-secondary)' %>; font-weight: 700;"><%= format_number(s[:total_count]) %></span></td>
         <td><span class="num"><%= format_number(s[:top_level_count]) %></span></td>
         <td><span class="risk-score" style="background: <%= s[:cascade_ratio] >= 5 ? 'var(--red-dim)' : s[:cascade_ratio] >= 3 ? 'var(--yellow-dim)' : 'var(--green-dim)' %>; color: <%= s[:cascade_ratio] >= 5 ? 'var(--red)' : s[:cascade_ratio] >= 3 ? 'var(--yellow)' : 'var(--green)' %>;"><%= s[:cascade_ratio] %>x</span></td>
-        <td><span class="num"><%= s[:total_time].is_a?(Numeric) ? "#{s[:total_time].round(1)}s" : s[:total_time] %></span></td>
+        <td><span class="num"><%= s[:total_time].is_a?(Numeric) ? "#{s[:total_time].round(1)}s" : h(s[:total_time]) %></span></td>
       </tr>
       <tr class="factory-detail" style="display:none;">
         <td colspan="5" style="padding: 0;">

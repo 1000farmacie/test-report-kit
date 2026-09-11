@@ -206,4 +206,82 @@ RSpec.describe TestReportKit::DiffCoverage do
       expect(cart.covered_lines).to contain_exactly(4, 6, 14)
     end
   end
+
+  describe "git argument safety" do
+    # Git refname rules permit `;`, `|`, `&` and `$()`. Before argv-form calls,
+    # `diff_base_branch` was interpolated into a backtick string, so a ref taken
+    # from ENV (e.g. GITHUB_BASE_REF on a fork PR) executed as a shell command.
+    let(:malicious_refs) do
+      [
+        "main; touch /tmp/pwned",
+        "main && touch /tmp/pwned",
+        "main | touch /tmp/pwned",
+        "main$(touch /tmp/pwned)",
+        "main`touch /tmp/pwned`",
+        "--upload-pack=touch /tmp/pwned",
+        "main\ntouch /tmp/pwned"
+      ]
+    end
+
+    let(:evil_config) do
+      TestReportKit.configure do |c|
+        c.project_root = "/app"
+        c.diff_base_branch = "main; touch /tmp/trk_pwned"
+      end
+      TestReportKit.configuration
+    end
+
+    let(:evil_diff_coverage) { described_class.new(coverage_data: coverage_data, config: evil_config) }
+
+    it "rejects every shell metacharacter payload before invoking git" do
+      aggregate_failures do
+        malicious_refs.each do |ref|
+          TestReportKit.configure do |c|
+            c.project_root = "/app"
+            c.diff_base_branch = ref
+          end
+          subject = described_class.new(coverage_data: coverage_data, config: TestReportKit.configuration)
+          expect(subject.send(:resolve_base_ref)).to be_nil, "expected #{ref.inspect} to be rejected"
+        end
+      end
+    end
+
+    it "never spawns a process for a rejected ref" do
+      expect(Open3).not_to receive(:capture3)
+      expect(evil_diff_coverage.send(:resolve_base_ref)).to be_nil
+    end
+
+    it "accepts ordinary refs including slashes, dots and dashes" do
+      aggregate_failures do
+        ["main", "develop", "release/2.1", "feature/foo-bar", "v1.0.0", "origin/main"].each do |ref|
+          TestReportKit.configure do |c|
+            c.project_root = "/app"
+            c.diff_base_branch = ref
+          end
+          subject = described_class.new(coverage_data: coverage_data, config: TestReportKit.configuration)
+          allow(subject).to receive(:git_capture).and_return("abcdef0123456789\n")
+          expect(subject.send(:resolve_base_ref)).to eq("abcdef012345"), "expected #{ref.inspect} to be allowed"
+        end
+      end
+    end
+
+    it "passes each git argument separately so no shell parses them" do
+      expect(Open3).to receive(:capture3)
+        .with("git", "rev-parse", "--verify", "main")
+        .and_return(["abcdef0123456789\n", "", instance_double(Process::Status, success?: true)])
+
+      expect(diff_coverage.send(:resolve_base_ref)).to eq("abcdef012345")
+    end
+
+    it "returns nil rather than raising when git is absent" do
+      allow(Open3).to receive(:capture3).and_raise(Errno::ENOENT)
+      expect(diff_coverage.send(:git_capture, "rev-parse", "HEAD")).to be_nil
+    end
+
+    it "returns nil when git exits non-zero" do
+      allow(Open3).to receive(:capture3)
+        .and_return(["", "fatal: bad revision", instance_double(Process::Status, success?: false)])
+      expect(diff_coverage.send(:git_capture, "rev-parse", "nope")).to be_nil
+    end
+  end
 end

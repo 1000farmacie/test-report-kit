@@ -4,6 +4,32 @@ All notable changes to `test_report_kit` are documented in this file. Format fol
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-11
+
+### Security
+- **Fixed shell injection in the git invocations** (`diff_coverage.rb`,
+  `runner.rb`). `config.diff_base_branch` and `config.churn_days` were
+  interpolated into backtick strings, so both reached `/bin/sh` verbatim. Git
+  refname rules permit `;`, `|`, `&` and `$()`, so a host that sourced the base
+  branch from untrusted input — for example
+  `config.diff_base_branch = ENV["GITHUB_BASE_REF"]`, which on a fork pull
+  request is the contributor's branch name — could execute arbitrary commands
+  in CI.
+
+  Every git call now uses argv form via `Open3.capture3`, which passes
+  arguments straight to `execve` and never invokes a shell. As a second layer,
+  `diff_base_branch` is validated against `/\A[A-Za-z0-9][A-Za-z0-9._\/-]*\z/`
+  (the leading character must be alphanumeric so a ref can never be read by git
+  as an option such as `--upload-pack`), and `churn_days` is coerced with
+  `Integer()`.
+
+  Projects that set neither option, or set them to literal values, were not
+  affected.
+
+### Changed
+- A malformed `churn_days` now warns and skips the churn panel instead of
+  aborting the run, and a missing `git` binary is handled the same way.
+
 ## [0.4.2] - 2026-05-21
 
 ### Added

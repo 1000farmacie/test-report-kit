@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "open3"
 require "set"
 
 module TestReportKit
@@ -16,6 +17,14 @@ module TestReportKit
     HUNK_HEADER_RE = /^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/
     DIFF_FILE_RE   = /^diff --git a\/.+ b\/(.+)$/
     RUBY_APP_RE    = /\A(?:app|lib)\/.+\.rb\z/
+
+    # `diff_base_branch` reaches git as an argument, so it is validated before use.
+    # Git refname rules permit `;`, `|`, `&` and `$()`, so a ref sourced from ENV or
+    # YAML (e.g. `config.diff_base_branch = ENV["GITHUB_BASE_REF"]`) is attacker
+    # controlled. Every git call here uses argv form, which never reaches a shell;
+    # this allowlist is the second layer. The leading character must be
+    # alphanumeric so a ref can never be parsed by git as an option (`--upload-pack`).
+    BASE_REF_RE = %r{\A[A-Za-z0-9][A-Za-z0-9._/-]*\z}
 
     Result = Struct.new(
       :base_branch, :base_sha, :head_sha,
@@ -195,30 +204,40 @@ module TestReportKit
       base = resolve_base_ref
       return nil unless base
 
-      cmd = "git diff #{base}...HEAD --unified=0 --no-color --diff-filter=ACMR --find-renames"
-      result = `#{cmd} 2>/dev/null`
-      $?.success? ? result : nil
+      git_capture("diff", "#{base}...HEAD", "--unified=0", "--no-color",
+                  "--diff-filter=ACMR", "--find-renames")
     end
 
     def resolve_base_ref
-      base = @config.diff_base_branch
-      ["git rev-parse --verify #{base} 2>/dev/null", "git rev-parse --verify origin/#{base} 2>/dev/null"].each do |cmd|
-        result = `#{cmd}`.strip
-        return result[0..11] if $?.success? && !result.empty?
+      base = @config.diff_base_branch.to_s
+      return nil unless base.match?(BASE_REF_RE)
+
+      [base, "origin/#{base}"].each do |ref|
+        result = git_capture("rev-parse", "--verify", ref).to_s.strip
+        return result[0..11] unless result.empty?
       end
-      nil
-    rescue Errno::ENOENT
       nil
     end
 
     def git_merge_base
       base = resolve_base_ref
       return "" unless base
-      `git merge-base #{base} HEAD 2>/dev/null`.strip[0..6]
+
+      git_capture("merge-base", base, "HEAD").to_s.strip[0..6].to_s
     end
 
     def git_head_sha
-      `git rev-parse --short HEAD 2>/dev/null`.strip
+      git_capture("rev-parse", "--short", "HEAD").to_s.strip
+    end
+
+    # Runs git in argv form so arguments are passed to execve directly and are
+    # never parsed by a shell. Returns nil on non-zero exit or a missing binary,
+    # matching the previous backtick behaviour (callers treat nil as "no git").
+    def git_capture(*args)
+      stdout, _stderr, status = Open3.capture3("git", *args)
+      status.success? ? stdout : nil
+    rescue Errno::ENOENT
+      nil
     end
   end
 end

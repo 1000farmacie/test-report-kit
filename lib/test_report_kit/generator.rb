@@ -243,6 +243,19 @@ module TestReportKit
       @markdown_content.gsub("</script>", "<\\/script>")
     end
 
+    # JSON destined for a <script> block must not be able to close the element.
+    # `to_json` leaves `<` and `/` untouched, so any string that reaches one of
+    # these blocks can emit a literal `</script>` and turn the rest of the document
+    # into live markup — no quote character required. That matters most for
+    # `coverage_file_data_json`, which embeds the full source of every uncovered
+    # file, i.e. arbitrary repository content.
+    #
+    # Escaping `<` and `>` as \\u003c / \\u003e keeps the payload valid JSON that
+    # JSON.parse returns byte-identical, so no consumer needs to change.
+    def script_safe_json(value)
+      value.to_json.gsub("<", '\\u003c').gsub(">", '\\u003e')
+    end
+
     def format_duration_val(seconds)
       return "—" unless seconds
       s = seconds.to_f
@@ -301,12 +314,12 @@ module TestReportKit
     end
 
     def json_data
-      {
+      script_safe_json({
         diff_coverage: @diff_coverage&.to_h,
         file_coverage: file_coverage,
         factory_health: factory_health,
         insights: insights
-      }.to_json
+      })
     end
 
     def coverage_file_data_json
@@ -328,11 +341,11 @@ module TestReportKit
         }
       end
 
-      result.to_json
+      script_safe_json(result)
     end
 
     def coverage_config_json
-      { github_url: @config.github_url, sha: sha }.to_json
+      script_safe_json({ github_url: @config.github_url, sha: sha })
     end
 
     def all_passing?

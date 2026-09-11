@@ -101,7 +101,7 @@
   </div>
   <% factory_health[:suggestions].each do |s| -%>
   <div class="suggestion">
-    <strong style="color: <%= severity_color(s[:severity]) %>;"><%= s[:severity] %>:</strong> <%= s[:message] %>
+    <strong style="color: <%= severity_color(s[:severity]) %>;"><%= h(s[:severity]) %>:</strong> <%= h(s[:message]) %>
   </div>
   <% end -%>
 </div>

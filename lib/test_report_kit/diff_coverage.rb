@@ -19,12 +19,17 @@ module TestReportKit
     RUBY_APP_RE    = /\A(?:app|lib)\/.+\.rb\z/
 
     # `diff_base_branch` reaches git as an argument, so it is validated before use.
-    # Git refname rules permit `;`, `|`, `&` and `$()`, so a ref sourced from ENV or
-    # YAML (e.g. `config.diff_base_branch = ENV["GITHUB_BASE_REF"]`) is attacker
-    # controlled. Every git call here uses argv form, which never reaches a shell;
-    # this allowlist is the second layer. The leading character must be
-    # alphanumeric so a ref can never be parsed by git as an option (`--upload-pack`).
-    BASE_REF_RE = %r{\A[A-Za-z0-9][A-Za-z0-9._/-]*\z}
+    # Git refname rules permit `;`, `|`, `&` and `$()` — and `${IFS}` sidesteps the
+    # ban on spaces — so a base branch taken from ENV, YAML or a CI variable rather
+    # than a literal is untrusted input.
+    #
+    # Argv form is the actual defence: nothing here reaches a shell. This allowlist
+    # is the second layer, and also keeps git from reading a ref as an option, hence
+    # the restricted first character (`--upload-pack=...` is rejected).
+    #
+    # Unicode letters are deliberately allowed — `développement` and `主分支` are
+    # valid branch names, and rejecting them would silently disable the gate.
+    BASE_REF_RE = %r{\A[\p{L}\p{N}_][\p{L}\p{N}._/+-]*\z}
 
     Result = Struct.new(
       :base_branch, :base_sha, :head_sha,
@@ -208,9 +213,23 @@ module TestReportKit
                   "--diff-filter=ACMR", "--find-renames")
     end
 
+    # Memoised so a run resolves the base ref once instead of per call site, and so
+    # a rejected ref warns once rather than on every caller.
     def resolve_base_ref
+      return @resolved_base_ref if defined?(@resolved_base_ref)
+
+      @resolved_base_ref = compute_base_ref
+    end
+
+    def compute_base_ref
       base = @config.diff_base_branch.to_s
-      return nil unless base.match?(BASE_REF_RE)
+      unless base.match?(BASE_REF_RE)
+        # Never fail silently here. A rejected ref disables diff coverage, and the
+        # dashboard renders that identically to "this branch has no diff" — so
+        # without this line a typo'd or exotic branch name looks like a passing gate.
+        warn "TestReportKit: diff_base_branch #{base.inspect} is not a usable branch name — skipping diff coverage"
+        return nil
+      end
 
       [base, "origin/#{base}"].each do |ref|
         result = git_capture("rev-parse", "--verify", ref).to_s.strip

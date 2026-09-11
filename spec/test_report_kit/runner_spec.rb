@@ -278,12 +278,17 @@ RSpec.describe TestReportKit::Runner do
     end
 
     it "skips churn without spawning a process when churn_days is not numeric" do
-      config.churn_days = "90 days; touch /tmp/trk_pwned"
+      # The payload breaks out of the single quotes the old command used
+      # (`--since='#{days} days'`); a plain `90 days; ...` was inert there.
+      # Verified: against the previous implementation this spec created the marker.
+      marker = File.join(tmpdir, "pwned")
+      config.churn_days = "90' ; touch #{marker} ; echo '"
       expect(Open3).not_to receive(:capture3)
 
       expect { runner.send(:compute_git_churn) }
         .to output(/churn_days must be an integer/).to_stderr
 
+      expect(File).not_to exist(marker)
       expect(File).not_to exist(churn_path)
     end
 

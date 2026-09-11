@@ -208,9 +208,10 @@ RSpec.describe TestReportKit::DiffCoverage do
   end
 
   describe "git argument safety" do
-    # Git refname rules permit `;`, `|`, `&` and `$()`. Before argv-form calls,
-    # `diff_base_branch` was interpolated into a backtick string, so a ref taken
-    # from ENV (e.g. GITHUB_BASE_REF on a fork PR) executed as a shell command.
+    # Git refname rules permit `;`, `|`, `&` and `$()` (and `${IFS}` works around the
+    # ban on spaces). Before argv-form calls, `diff_base_branch` was interpolated into
+    # a backtick string, so any ref that came from ENV, YAML or a CI variable rather
+    # than a literal executed as a shell command.
     let(:malicious_refs) do
       [
         "main; touch /tmp/pwned",
@@ -233,7 +234,11 @@ RSpec.describe TestReportKit::DiffCoverage do
 
     let(:evil_diff_coverage) { described_class.new(coverage_data: coverage_data, config: evil_config) }
 
-    it "rejects every shell metacharacter payload before invoking git" do
+    it "rejects every shell metacharacter payload without spawning a process" do
+      # Asserting only `be_nil` would be vacuous: in a checkout where neither `main`
+      # nor `origin/main` resolves, the OLD vulnerable code also returned nil — while
+      # still executing the payload. The load-bearing assertion is that git is never
+      # invoked at all, which is environment-independent.
       aggregate_failures do
         malicious_refs.each do |ref|
           TestReportKit.configure do |c|
@@ -241,19 +246,18 @@ RSpec.describe TestReportKit::DiffCoverage do
             c.diff_base_branch = ref
           end
           subject = described_class.new(coverage_data: coverage_data, config: TestReportKit.configuration)
-          expect(subject.send(:resolve_base_ref)).to be_nil, "expected #{ref.inspect} to be rejected"
+          allow(Open3).to receive(:capture3)
+
+          expect { subject.send(:resolve_base_ref) }.to output(/not a usable branch name/).to_stderr
+          expect(Open3).not_to have_received(:capture3), "expected #{ref.inspect} to never reach git"
         end
       end
     end
 
-    it "never spawns a process for a rejected ref" do
-      expect(Open3).not_to receive(:capture3)
-      expect(evil_diff_coverage.send(:resolve_base_ref)).to be_nil
-    end
-
     it "accepts ordinary refs including slashes, dots and dashes" do
       aggregate_failures do
-        ["main", "develop", "release/2.1", "feature/foo-bar", "v1.0.0", "origin/main"].each do |ref|
+        ["main", "develop", "release/2.1", "feature/foo-bar", "v1.0.0", "origin/main",
+           "développement", "主分支", "fix+plus", "_private"].each do |ref|
           TestReportKit.configure do |c|
             c.project_root = "/app"
             c.diff_base_branch = ref

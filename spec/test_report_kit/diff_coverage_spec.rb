@@ -269,6 +269,32 @@ RSpec.describe TestReportKit::DiffCoverage do
       end
     end
 
+    it "skips diff coverage instead of raising on a non-UTF-8 ref" do
+      # `call` is unrescued in Runner, so an encoding error here would abort the
+      # entire report rather than degrade to "no diff coverage".
+      TestReportKit.configure do |c|
+        c.project_root = "/app"
+        c.diff_base_branch = "main\xFF".dup.force_encoding("ASCII-8BIT")
+      end
+      subject = described_class.new(coverage_data: coverage_data, config: TestReportKit.configuration)
+
+      expect { expect(subject.send(:resolve_base_ref)).to be_nil }
+        .to output(/not a usable branch name/).to_stderr
+    end
+
+    it "does not mutate the configured branch string's encoding" do
+      original = "main".dup.force_encoding("ASCII-8BIT")
+      TestReportKit.configure do |c|
+        c.project_root = "/app"
+        c.diff_base_branch = original
+      end
+      subject = described_class.new(coverage_data: coverage_data, config: TestReportKit.configuration)
+      allow(subject).to receive(:git_capture).and_return("abcdef0123456789\n")
+
+      subject.send(:resolve_base_ref)
+      expect(original.encoding.to_s).to eq("ASCII-8BIT")
+    end
+
     it "passes each git argument separately so no shell parses them" do
       expect(Open3).to receive(:capture3)
         .with("git", "rev-parse", "--verify", "main")

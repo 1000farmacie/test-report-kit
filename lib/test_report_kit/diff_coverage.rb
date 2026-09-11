@@ -222,8 +222,13 @@ module TestReportKit
     end
 
     def compute_base_ref
-      base = @config.diff_base_branch.to_s
-      unless base.match?(BASE_REF_RE)
+      # dup before force_encoding: `to_s` returns the config's own String, and the
+      # tag must not be mutated in place. A ref arriving as ASCII-8BIT with a high
+      # byte would otherwise raise Encoding::CompatibilityError against the Unicode
+      # character class, and `call` is unrescued — one bad byte would abort the
+      # whole report rather than just skipping diff coverage.
+      base = @config.diff_base_branch.to_s.dup.force_encoding("UTF-8")
+      unless base.valid_encoding? && base.match?(BASE_REF_RE)
         # Never fail silently here. A rejected ref disables diff coverage, and the
         # dashboard renders that identically to "this branch has no diff" — so
         # without this line a typo'd or exotic branch name looks like a passing gate.
